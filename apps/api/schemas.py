@@ -1,4 +1,5 @@
 from typing import Literal
+from uuid import UUID
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -17,9 +18,17 @@ class RunRequest(BaseModel):
     workers: int = Field(default=1, ge=1, le=2)
     duration: int = Field(default=15, ge=4, le=15)
     instruction: str = Field(default="", max_length=4000)
+    operation: Literal["generate", "preview"] = "generate"
+    preview_id: UUID | None = None
 
     @model_validator(mode="after")
     def check(self):
+        if self.kind != "seedance" and (self.operation == "preview" or self.preview_id):
+            raise ValueError("Prompt 预览仅适用于 Seedance")
+        if self.kind == "seedance" and self.full_dataset:
+            raise ValueError("Seedance 请显式指定数量或源样本，不支持全量 GT 采集选项")
+        if self.operation == "preview" and self.preview_id:
+            raise ValueError("预览任务不能引用另一个预览")
         if self.dataset == "r2r" and (self.role != "guide" or self.languages != ["all"]):
             raise ValueError("R2R 使用 guide 和 all；语言筛选仅用于 RxR")
         if not self.languages or ("all" in self.languages and len(self.languages) != 1):

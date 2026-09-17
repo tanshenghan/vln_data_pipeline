@@ -164,3 +164,93 @@ def test_quality_findings_do_not_fail_generation_execution():
     from workers.seedance_entry import execution_errors
     assert execution_errors(['seedance_rgb_video_is_not_ground_truth','instruction_path_direction_mismatch'])==[]
     assert execution_errors(['pipeline_error:network failed','monocular_scale_is_unknown'])==['pipeline_error:network failed']
+
+
+def test_preview_snapshot_reused_and_changed_parameters_rejected(platform,monkeypatch):
+    client,dispatch=platform
+    monkeypatch.setattr(main,'health',lambda:{'seedance_ready':True})
+    payload={'kind':'seedance','operation':'preview','dataset':'rxr','episode_ids':['10288'],'duration':8}
+    preview=client.post('/api/runs',json=payload,headers={'Idempotency-Key':'frozen-preview-test'}).json()
+    rid=preview['id'];db.update_run(rid,status='succeeded')
+    assert 'Prompt' in client.post('/api/releases/'+rid).json()['detail']
+    frozen=[{'sample_id':'frozen-test','seedance_prompt':'This is the exact preview, unchanged.'}]
+    target=run_dir(rid)/'generation/prepared_samples.json';target.parent.mkdir(parents=True)
+    target.write_text(json.dumps(frozen))
+    actual={**payload,'operation':'generate','preview_id':rid}
+    started=client.post('/api/runs',json=actual,headers={'Idempotency-Key':'frozen-generate-test'})
+    assert started.status_code==202,started.text
+    assert started.json()['config']['prepared_samples']==frozen
+    repeat=client.post('/api/runs',json=actual,headers={'Idempotency-Key':'frozen-generate-test'})
+    assert repeat.json()['id']==started.json()['id']
+    changed=client.post('/api/runs',json={**actual,'duration':9},headers={'Idempotency-Key':'changed-preview-test'})
+    assert changed.status_code==422
+    assert '重新预览' in changed.json()['detail']
+    assert dispatch.call_count==2
+
+
+def test_production_catalog_filters_export_and_non_gt_identity(platform):
+    from apps.api.db import DataSample
+    client,_=platform
+    first=client.post('/api/runs',json={'dataset':'rxr'},headers={'Idempotency-Key':'catalog-parent-one'}).json()
+    source_id=first['config']['source_ids'][0]
+    with db.session() as session:
+        for origin,quality,media in [('gt','validated','video-1'),('seedance','review',None)]:
+            session.add(DataSample(id='produced_'+origin,run_id=first['id'],origin=origin,dataset='RxR',split='train',role='guide',language='en-US',
+                scene='example',episode_id='10288',instruction='Walk forward.',source_record_id=source_id,quality=quality,
+                details={'route_id':origin,'path_length':3.5 if origin=='gt' else None,'video_artifact_id':media,'artifact_ids':[],
+                         'missing':{} if origin=='gt' else {'depth':'未提供'}}))
+    r=client.get('/vln-api/episodes',params={'origin':'produced','dataset':'RxR','limit':1}).json()
+    assert r['stats']['records']==2 and len(r['items'])==1
+    assert r['stats']['media']==1
+    assert client.get('/vln-api/episodes',params={'origin':'seedance','quality':'issues'}).json()['stats']['records']==1
+    detail=client.get('/vln-api/episode',params={'id':'produced_seedance'}).json()
+    assert detail['ground_truth'] is False
+    assert detail['missing']['depth']=='未提供'
+    assert detail['source_record_id']==source_id
+    rows=client.get('/api/sources/'+source_id+'/derived').json()
+    assert {r['origin'] for r in rows}=={'gt','seedance'}
+    exported=client.post('/vln-api/export',data={'payload':json.dumps({'filters':{'origin':'produced','media':'yes','min_length':'3'}})})
+    assert exported.status_code==200,exported.text
+    assert [r['id'] for r in exported.json()['samples']]==['produced_gt']
+
+
+def test_blank_observed_semantics_are_missing_not_invented():
+    from dataclasses import asdict
+    from navgen_pipeline.planner import TemplatePlanner,sample_spec_from_dict
+    sample=TemplatePlanner().plan_one(0)
+    data=asdict(sample)
+    data['scene'].update(semantic_label='',semantic_confidence=' ',semantic_source='')
+    parsed=sample_spec_from_dict(data,sample.sample_id,sample.seed)
+    assert parsed.scene.semantic_confidence is None
+    assert parsed.scene.semantic_label is None
+    assert parsed.scene.semantic_source is None
+
+
+def test_planner_response_is_reused_after_parser_failure(tmp_path):
+    from workers.seedance_entry import InstructionClient
+    client=Mock();client.call_history=[{'model':'planner','usage':{'input_tokens':100}}]
+    client.generate_text.return_value='{"scene":{"semantic_confidence":""}}'
+    wrapper=InstructionClient(client,'walk forward',tmp_path/'responses')
+    first=wrapper.generate_text(model='planner',system='JSON',user_text='Plan')
+    client.call_history=[]
+    second=wrapper.generate_text(model='planner',system='JSON',user_text='Plan')
+    assert first==second
+    assert client.generate_text.call_count==1
+    assert client.call_history[0]['usage']['input_tokens']==100
+
+
+def test_dataset_archive_contains_files_and_path_escape_is_denied(platform):
+    import io,tarfile
+    from workers.tasks import register
+    client,_=platform
+    rid=client.post('/api/runs',json={'dataset':'rxr'},headers={'Idempotency-Key':'archive-run'}).json()['id']
+    directory=run_dir(rid)/'dataset';(directory/'meta').mkdir(parents=True)
+    (directory/'meta/info.json').write_text('{"test":true}')
+    register(rid,'dataset',directory)
+    artifact=client.get('/api/runs/'+rid).json()['artifacts'][0]
+    response=client.get('/api/artifacts/'+artifact['id'],params={'archive':'tar'})
+    assert response.status_code==200
+    with tarfile.open(fileobj=io.BytesIO(response.content)) as archive:
+        assert archive.extractfile('./meta/info.json').read()==b'{"test":true}'
+    escaped=client.get('/api/artifacts/'+artifact['id'],params={'file':'../../../../etc/passwd'})
+    assert escaped.status_code==403

@@ -698,6 +698,9 @@ def sample_spec_from_dict(
     """Convert a planner JSON object into the local data contract."""
 
     scene_data = dict(data["scene"])
+    for field in ("semantic_label", "semantic_confidence", "semantic_source"):
+        if isinstance(scene_data.get(field), str) and not scene_data[field].strip():
+            scene_data[field] = None
     objects = [
         _normalize_object(dict(item), index)
         for index, item in enumerate(scene_data.get("objects", []))
@@ -738,6 +741,7 @@ def sample_spec_from_dict(
         "go_to_target": "object_goal",
         "navigate_to_target": "object_goal",
         "navigate": "object_goal",
+        "navigation": "object_goal",
         "point_goal": "object_goal",
         "object_navigation": "object_goal",
         "follow": "target_tracking",
@@ -832,7 +836,7 @@ class DoubaoPlanner:
             "场景必须包含可观察物体、唯一 target_id、可执行的 waypoints，"
             "并让 instruction_zh 与 route_contract 的动作顺序完全一致。"
             "只有能够明确给出边界和标签时才填写 scene.regions，否则返回空数组，不能猜造房间分区。"
-            "semantic_label/semantic_confidence/semantic_source 属于视频审核后的观测字段；规划阶段必须留空，"
+            "semantic_label/semantic_confidence/semantic_source 属于视频审核后的观测字段；规划阶段必须返回 JSON null，"
             "不能把 room_type 先验冒充视觉语义。"
         )
         user = (

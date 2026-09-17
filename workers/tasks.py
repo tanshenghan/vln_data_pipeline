@@ -204,6 +204,8 @@ def collect_gt(run_id, cfg):
         register(run_id, "report", output / "meta" / name)
     from .catalog_sync import sync_gt_catalog
     sync_gt_catalog()
+    from .sample_catalog import register_samples
+    register_samples(run_id)
 
 
 def generate_seedance(run_id, cfg):
@@ -225,6 +227,8 @@ def register_seedance_artifacts(run_id):
             register(run_id, kind, path,
                      {"ground_truth": False, "missing": missing, "trajectory": "估计轨迹，非 GT",
                       "relative_path": str(path.relative_to(output))})
+    from .sample_catalog import register_samples
+    register_samples(run_id)
 
 
 @celery.task(name="workers.tasks.execute_run")

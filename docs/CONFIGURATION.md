@@ -53,3 +53,23 @@ GT 导出环境为 Python 3.11、`lerobot==0.4.4`、`numpy==1.26.4`；CPU Torch 
 - [总体架构与验收要求](ARCHITECTURE_PLAN.md)
 
 网页新增参数应映射到既有 GT 入口，不能改变坐标、时间、四类监督或各自 mask 的含义。跨环境校验只允许投影浮点值 `1e-9` 的绝对舍入误差，离散 token、状态和 mask 仍严格比较。
+
+## Prompt 预览与产物目录
+
+Seedance 页面可先创建 Prompt 预览任务，查看实际编译后的提示词。自由任务会调用规划模型，产生文本用量；此时不提交视频。点击“使用此 Prompt 配置生成”返回生成表单，再点击开始生成，后端复用预览快照。数量、时长、源样本或任务说明变化后，必须重新预览；任务名称可修改。预览不属于生产数据，不能发布数据版本。
+
+规划模型的返回文本和用量缓存于各运行 `generation/planner_responses/`，解析失败后复用已有回复，不为相同输入重复请求。原始观测语义空字符串按缺失值处理，不生成置信度；已观察到的 `navigation` 类型别名映射为既有 `object_goal`。
+
+Atlas 的“更多筛选 → 来源类型”可选择原始指令、全部生产产物、GT 或 Seedance。产物存于 PostgreSQL `data_samples`，与只读原目录分离。每个运行/样本有独立 ID，数据版本对应其运行 ID；同一源指令的多次采集或生成不会互相覆盖。源指令详情底部列出派生产物。原版首页的默认布局与原始数据查询保持一致。
+
+数据集下载支持 `/api/artifacts/<id>?archive=tar`，流式打包，不先复制整个数据集；普通文件使用 `?download=true`。目录中的单个文件用 `?file=<relative-path>` 读取，服务器校验解析后的路径必须属于该数据集。
+
+只读浏览器验收脚本（不会提交生成或采集任务）：
+
+```bash
+.venv/bin/python tests/browser_smoke.py \
+  --run 0f035774-eeab-45fc-bd66-2f80a96ac2fa \
+  --preview 41565bac-9d58-4ade-a112-8bb07483387e
+```
+
+可通过 `--url`、`--chromium` 和 `--output` 指定网站、浏览器及证据目录。测试依赖见 `tests/requirements.txt`，生成截图与 JSON 证据存放于被 Git 忽略的 `test-results/`。

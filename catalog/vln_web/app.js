@@ -117,6 +117,17 @@ async function loadList() {
     $("#previous").disabled = state.offset === 0; $("#next").disabled = state.offset + state.limit >= state.total;
     $("#export").disabled = !state.total || state.exportBusy;
     populateFacets(result.facets); renderList();
+    renderDirectory(result.tree || state.metadata.tree);
+    $('#stat-media').previousElementSibling.textContent=state.params.origin?'可播放视频':'可生成 GT 视频';
+    $('#stat-records').previousElementSibling.textContent=state.params.origin?'产物样本':'指令样本';
+    $('#stat-routes').previousElementSibling.textContent=state.params.origin?'规划 / 来源路线':'参考路线';
+    $('#stat-scenes').previousElementSibling.textContent=state.params.origin?'规划 / 来源场景':'Scan 场景';
+    const footer=document.querySelector('footer');footer.dataset.sourceText??=footer.textContent;
+    footer.textContent=state.params.origin?'GT 与生成产物分别标注 · Seedance 轨迹为估计结果，非 GT · 缺失信息不补全':footer.dataset.sourceText;
+    $('#video-coverage').hidden=Boolean(state.params.origin)||!state.metadata.gt_videos;
+    const quality=$('#filters select[name=quality]');
+    quality.options[1].textContent=state.params.origin?'质量通过':'指令、路径、目标齐全';
+    quality.options[2].textContent=state.params.origin?'需要检查或复核':'存在缺失字段';
     if (state.items.length) selectRecord(state.items.find(r => r.id === state.selected)?.id || state.items.find(r => r.episode_id === state.params.q)?.id || state.items[0].id);
     else { state.selected = null; $("#detail").replaceChildren(empty("没有匹配的样本", "调整筛选条件，或点击重置查看完整目录。")); }
   } catch (error) {
@@ -137,8 +148,9 @@ function renderList() {
     button.setAttribute("aria-current", String(record.id === state.selected));
     const top = element("div", "sample-top"); const labels = element("div", "chips");
     labels.append(chip(record.dataset, record.dataset.toLowerCase()), chip(record.language));
-    labels.append(chip(record.has_gt ? "GT 已接入" : record.split === "test" ? "GT 未公开" : "GT 未接入", record.has_gt ? "keep" : ""));
-    top.append(element("span", "sample-id", `Episode ${record.episode_id}`), labels);
+    if(record.origin)labels.append(chip(record.origin==='seedance'?'生成 · 非 GT':'采集 GT',record.origin==='seedance'?'review':'keep'));
+    else labels.append(chip(record.has_gt ? "GT 已接入" : record.split === "test" ? "GT 未公开" : "GT 未接入", record.has_gt ? "keep" : ""));
+    top.append(element("span", "sample-id", record.origin==='seedance'?`生成样本 ${record.id.slice(-8)}`:`Episode ${record.episode_id}`), labels);
     const instruction = element("p", "sample-instruction", record.instruction || "该样本没有公开指令"); instruction.lang = record.language; instruction.dir = "auto";
     const meta = element("div", "sample-meta");
     for (const text of [record.scene, record.split, record.role, metres(record.path_length), record.has_gt_video ? "GT 视频" : ""]) if (text) meta.append(element("span", "", text));
@@ -160,6 +172,7 @@ function section(title) { const node = element("section", "detail-section"); if 
 function facts(items) { const list = element("dl", "facts"); for (const [key, value] of items) { const entry = element("div"); entry.append(element("dt", "", key), element("dd", "", value)); list.append(entry); } return list; }
 
 function renderDetail(record) {
+  if(record.origin){renderProduced(record);return;}
   const detail = $("#detail"); detail.replaceChildren();
   const header = element("div", "detail-header"); const chips = element("div", "chips");
   chips.append(chip(record.dataset, record.dataset.toLowerCase()), chip(record.split), chip(record.role), chip(LANGUAGE_LABELS[record.language] || record.language));
@@ -176,6 +189,41 @@ function renderDetail(record) {
   }
   provenance.append(disclosure); detail.append(provenance);
   window.dispatchEvent(new CustomEvent("vln:record-selected", { detail: record }));
+}
+
+function renderProduced(record){
+  const detail=$('#detail');detail.replaceChildren();
+  const header=element('div','detail-header'),chips=element('div','chips');
+  chips.append(chip(record.origin==='gt'?'GT 采集':'Seedance · 非 GT',record.origin==='gt'?'keep':'review'),chip(record.dataset),chip(record.split),chip(record.language));
+  header.append(chips,element('h2','',record.origin==='gt'?`Episode ${record.episode_id}`:`生成样本 ${record.id.slice(-8)}`),element('p','',record.run_name));
+  detail.append(header);
+  const instruction=section('导航指令');instruction.append(element('p','instruction',record.instruction));detail.append(instruction);
+  const quality={validated:'GT 校验通过',accepted:'质量通过',review:'待复核',rejected_vlm:'语义检查未通过',rejected_pre_qc:'基础质量未通过',rejected_trajectory:'轨迹检查未通过'};
+  const info=section('来源与质量');
+  info.append(element('p','hint','执行状态：'+({succeeded:'已完成',failed:'失败',running:'运行中',cancelled:'已取消',paused:'已暂停',queued:'等待执行'}[record.run.status]||record.run.status)),element('p','hint',quality[record.quality]||record.quality),element('p','hint',`产物版本：${record.run_id}`));
+  const task=element('a','button-link','任务、报告与审核');task.href='#run/'+record.run_id;info.append(task);
+  if(record.source_record_id){
+    const source=element('a','button-link','查看原始指令');
+    const link=new URL(window.location.href);link.search='';link.hash='atlas';
+    for(const field of ['dataset','split','role','language'])link.searchParams.set(field,record[field]);link.searchParams.set('q',record.episode_id);
+    source.href=link.href;info.append(source);
+  }
+  if(record.origin==='seedance')info.append(element('p','issues','估计轨迹，非 GT。深度、可信标定、真实机体位姿及 FM / RVQ / apos / opos 监督未提供。'));
+  if(record.release)info.append(element('p','hint','已发布：'+record.release.id));
+  detail.append(info);
+  const media=section(record.origin==='gt'?'LeRobot GT 视频':'Seedance 原始视频');media.classList.add('gt-video');
+  const video=record.artifacts.find(a=>a.id===record.video_artifact_id);
+  if(video){const player=element('video');player.src='/api/artifacts/'+video.id;player.controls=true;player.preload='metadata';media.append(player);}
+  else media.append(element('p','hint','尚未产生可播放视频，已保留任务日志及报告。'));
+  detail.append(media);
+  if(record.origin==='seedance'){
+    const trajectory=record.artifacts.find(a=>a.name==='trajectory_plot.png');
+    if(trajectory){const view=section('估计轨迹 · 独立坐标，非 GT'),img=element('img');img.src='/api/artifacts/'+trajectory.id;img.alt='VGGT 估计轨迹';img.style.width='100%';view.append(img,element('p','hint','使用单目估计与参考路线尺度先验，不叠加到原场景 NavMesh。'));detail.append(view);}
+  }
+  const artifacts=section('产物下载'),downloads=element('details','details-toggle');downloads.append(element('summary','',`查看 ${record.artifacts.length} 个文件`));
+  for(const a of record.artifacts){const line=element('p'),link=element('a','button-link',a.name);link.href='/api/artifacts/'+a.id+(a.kind==='dataset'?'?archive=tar':'?download=true');link.target='_blank';line.append(link);downloads.append(line);}
+  artifacts.append(downloads);
+  detail.append(artifacts);
 }
 
 function projectRoute(points, axes = [0, 2], width = 620, height = 300) {
@@ -471,10 +519,10 @@ async function initialize(){
     state.metadata=await api("catalog");$("#catalog-date").textContent=`更新于 ${new Date(state.metadata.generated_at).toLocaleString("zh-CN")}`;
     populateFacets(state.metadata.facets);renderDirectory(state.metadata.tree);renderVideoProgress(state.metadata.gt_videos);
     const query=new URL(window.location.href).searchParams;state.params={};
-    for(const key of ["dataset","source_id","split","q","scene","role","language","media","quality","min_length","max_length"]){if(query.has(key))state.params[key]=query.get(key);}
+    for(const key of ["dataset","source_id","split","q","scene","role","language","media","quality","min_length","max_length","origin"]){if(query.has(key)&&$("#filters").elements.namedItem(key))state.params[key]=query.get(key);}
     for(const [key,value]of Object.entries(state.params))$("#filters").elements[key].value=value;
     await loadList();
-    setInterval(async()=>{if(document.hidden)return;try{renderVideoProgress(await api("video-progress"));}catch(_){}},10000);
+    setInterval(async()=>{if(document.hidden||state.params.origin)return;try{renderVideoProgress(await api("video-progress"));}catch(_){}},10000);
   }
   catch(error){$("#sample-list").setAttribute("aria-busy","false");$("#sample-list").replaceChildren(empty("目录连接失败",error.message));notify(error.message,true,initialize);}
 }
@@ -482,7 +530,7 @@ async function initialize(){
 document.addEventListener("DOMContentLoaded",()=>{
   let searchTimer;const form=$("#filters");form.addEventListener("submit",event=>{event.preventDefault();clearTimeout(searchTimer);readFilters();});
   form.addEventListener("input",event=>{if(event.target.matches("input")){clearTimeout(searchTimer);searchTimer=setTimeout(readFilters,250);}});
-  form.addEventListener("change",event=>{if(event.target.matches("select")){clearTimeout(searchTimer);if(["dataset","source_id","split"].includes(event.target.name))form.elements.scene.value="";readFilters();}});
+  form.addEventListener("change",event=>{if(event.target.matches("select")){clearTimeout(searchTimer);if(event.target.name==="origin"){for(const name of ["dataset","source_id","split","scene","role","language","media","quality"])form.elements[name].value="";}if(["dataset","source_id","split"].includes(event.target.name))form.elements.scene.value="";readFilters();}});
   $("#reset").addEventListener("click",()=>{clearTimeout(searchTimer);HTMLFormElement.prototype.reset.call(form);readFilters();});
   $("#previous").addEventListener("click",()=>{state.offset=Math.max(0,state.offset-state.limit);loadList();});$("#next").addEventListener("click",()=>{state.offset+=state.limit;loadList();});$("#export").addEventListener("click",exportManifest);
   document.addEventListener("visibilitychange",()=>{if(document.hidden)stopPlayback();});initialize();

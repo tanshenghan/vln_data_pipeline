@@ -12,6 +12,7 @@ from navgen_pipeline.ark_client import ArkHTTPError
 from navgen_pipeline.models import ObjectSpec, RouteContract, SampleSpec, SampleRecord, SceneManifest, StopCondition, TaskSpec, Waypoint
 from navgen_pipeline.pipeline import NavigationDataPipeline
 from navgen_pipeline.rxr import _localize_reference_path
+from navgen_pipeline.usage import aggregate_usage, text_event
 from .command_runner import atomic_json
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,7 +35,7 @@ def source_sample(record, duration):
     dx, dy = max(0, 0.5-min(p.x for p in points)), max(0, 0.5-min(p.y for p in points))
     for p in points:
         p.x += dx; p.y += dy
-    provenance = {"source_id":record["source_id"], "source_episode_id":record["episode_id"],
+    provenance = {"source_id":record["source_id"], "source_record_id":record["id"], "source_episode_id":record["episode_id"],
                   "source_scene_id":record["scene"], "source_instruction_id":record.get("instruction_id"),
                   "source_reference_path":path, "source_split":record["split"], "source_role":record["role"],
                   "source_language":record["language"], "ground_truth":False,
@@ -96,12 +97,24 @@ class DurableProvider:
 
 
 class InstructionClient:
-    def __init__(self, client, instruction):
-        self.client, self.instruction = client, instruction
+    def __init__(self, client, instruction, directory=None):
+        self.client, self.instruction, self.directory = client, instruction, directory
+        if directory:
+            directory.mkdir(exist_ok=True)
 
     def generate_text(self, **kwargs):
-        kwargs["user_text"] += "\n用户要求的导航任务：" + self.instruction + "\n请围绕该任务规划场景与路线。"
-        return self.client.generate_text(**kwargs)
+        if self.instruction:
+            kwargs["user_text"] += "\n用户要求的导航任务：" + self.instruction + "\n请围绕该任务规划场景与路线。"
+        key = hashlib.sha256(json.dumps(kwargs,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
+        saved = self.directory / (key+".json") if self.directory else None
+        if saved and saved.exists():
+            result=json.loads(saved.read_text())
+            self.client.call_history.append(result["usage"])
+            return result["text"]
+        result=self.client.generate_text(**kwargs)
+        if saved:
+            atomic_json(saved,{"text":result,"usage":self.client.call_history[-1]})
+        return result
 
 
 class PersistentPipeline(NavigationDataPipeline):
@@ -113,7 +126,15 @@ class PersistentPipeline(NavigationDataPipeline):
     def plan_samples(self, count):
         if self.plan_file.exists():
             return [restore_sample(s) for s in json.loads(self.plan_file.read_text())]
-        return super().plan_samples(count)
+        try:
+            return super().plan_samples(count)
+        except Exception:
+            rates=self.config.text_rates_for_stage("planner")
+            events=[text_event("planner",self.config.planner_model,call,
+                input_rate_cny_per_1k=rates[0],output_rate_cny_per_1k=rates[1])
+                for call in self.responses.call_history]
+            atomic_json(self.output_dir/"usage_summary.json",aggregate_usage(events))
+            raise
 
     def run_one(self, sample):
         manifest = self.output_dir / "manifest.jsonl"
@@ -178,10 +199,22 @@ def main():
     config.vggt_repo=os.environ.get("VLN_VGGT_REPO",str(Path.home()/".cache/navgen/vggt"))
     config.pipeline_profile="fixed"
     pipeline=PersistentPipeline(config,output_dir=cfg_path.parent/"generation",mode="live")
+    if request.get("prepared_samples") and not pipeline.plan_file.exists():
+        atomic_json(pipeline.plan_file,request["prepared_samples"])
     records=request.get("source_records",[])
-    if request.get("instruction") and not records:
-        pipeline.remote_planner.client=InstructionClient(pipeline.remote_planner.client,request["instruction"])
+    if not records:
+        pipeline.remote_planner.client=InstructionClient(pipeline.remote_planner.client,request.get("instruction", ""),pipeline.output_dir/"planner_responses")
     samples=[source_sample(r,request["duration"]) for r in records] if records else None
+    if request.get("operation") == "preview":
+        prepared = pipeline.prepare_samples(samples) if samples is not None else pipeline.plan_samples(request["count"])
+        atomic_json(pipeline.output_dir/"preview.json", [{"sample_id":s.sample_id,
+            "instruction":s.task.instruction_original or s.task.instruction_zh,
+            "prompt":s.seedance_prompt,"report":s.metadata.get("prompt_report"),
+            "ground_truth":False} for s in prepared])
+        atomic_json(pipeline.output_dir/"usage_summary.json",aggregate_usage([
+            event for sample in prepared for event in sample.metadata.get("usage_events",[])]))
+        print(json.dumps({"stage":"prompt_ready","completed":len(prepared),"total":len(prepared)}),flush=True)
+        return
     results=pipeline.run_batch(count=request["count"],samples=samples)
     failures=[(r.sample_id,execution_errors(r.errors)) for r in results if execution_errors(r.errors)]
     if failures:

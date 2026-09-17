@@ -19,3 +19,13 @@ R2R 与 RxR 均使用工作站 RTX 5090、资源目录中的 Habitat 环境和�
 密钥文件在仓库外，目录权限 0700、文件权限 0600。请求日志和数据库只保存运行配置、配置文件路径及供应商任务 ID，不保存密钥值。已验证鉴权及真实视频任务提交；后续网络超时属于状态查询失败，不能据此再次创建云端任务。
 
 恢复机制测试覆盖：重复请求、Worker 确认前退出、失败任务重复投递、供应商任务 ID 复用、提交结果不明禁止重提，以及已提交任务的临时查询失败只重试读取。下游失败仍登记已存在的原视频及报告。
+
+## 增补验收：预览、统一目录与恢复
+
+- 原版网页发起 R2R 任务 `3f794702-91dc-4d80-8ef8-861191e412a6` 后关闭浏览器，并在 capture 阶段重启 Worker。最终 capture、validate_capture、export、validate_lerobot、preview 均完成且各仅有一个 attempt；未重复采集。
+- 自由任务先通过网页创建预览 `41565bac-9d58-4ade-a112-8bb07483387e`，再使用同一预览在网页启动生成 `0f035774-eeab-45fc-bd66-2f80a96ac2fa`。两个 `prepared_samples.json` 内容完全一致，生成侧只有一个供应商任务提交记录。任务完成后，视频、质量、费用、独立估计轨迹和产物目录均经真实浏览器检查。
+- 自由规划首次暴露空观测语义和任务类型别名的上游兼容问题。现在空观测字段保持 null，navigation 使用已有 object_goal 语义；相同规划回复可缓存复用，不通过伪造观测语义或换用固定模板规避错误。
+- 产物目录浏览器筛选和下载清单覆盖两条 Seedance 结果；均明确 `ground_truth=false`，来源为空的自由任务归类为 Seedance/generated。其页面不显示 LeRobot GT 的说明或 GT 视频整理进度。
+- 数据集 tar 下载验证包含实际文件内容，越界文件访问返回 403。
+
+新增截图保存在本机 `runtime/prompt_preview.png`、`runtime/seedance_from_preview_completed.png` 和 `runtime/catalog_seedance.png`。这仍不是总体计划所有条目的最终验收。

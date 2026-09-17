@@ -2,6 +2,7 @@ import hashlib
 import json
 from pathlib import Path
 import uuid
+import subprocess
 from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI, HTTPException, Request, Header
@@ -14,6 +15,7 @@ from .db import Base, engine, Run, Artifact, Review, Release, session, serialize
 from .settings import settings, ROOT
 from .schemas import RunRequest, ReviewRequest
 from .catalog_service import browse, detail, resolve_selection
+from . import produced_catalog
 from .preflight import health, validate_gt
 from workers.tasks import execute_run, run_dir
 
@@ -63,6 +65,11 @@ def source_detail(record_id: str):
     return record
 
 
+@app.get("/api/sources/{record_id}/derived")
+def source_derived(record_id: str):
+    return produced_catalog.derived(record_id)
+
+
 @app.get("/api/runs")
 def runs():
     with session() as db:
@@ -71,11 +78,11 @@ def runs():
 
 @app.post("/api/runs", status_code=202)
 def create_run(payload: RunRequest, idempotency_key: str = Header(min_length=8, max_length=128)):
-    cfg = payload.model_dump()
+    cfg = payload.model_dump(mode="json")
     with session() as db:
         existing = db.scalar(select(Run).where(Run.request_key == idempotency_key))
         if existing:
-            if existing.config.get("request_payload") != cfg:
+            if RunRequest.model_validate(existing.config["request_payload"]).model_dump(mode="json") != cfg:
                 raise HTTPException(409, "同一请求 ID 不能更改参数")
             return serialize(existing)
     try:
@@ -85,10 +92,24 @@ def create_run(payload: RunRequest, idempotency_key: str = Header(min_length=8, 
             validate_gt(cfg)
         elif not health()["seedance_ready"]:
             raise ValueError("Seedance API 密钥尚未配置，生成任务未提交")
+        if payload.preview_id:
+            with session() as db:
+                preview = db.get(Run, str(payload.preview_id))
+                if not preview or preview.status != "succeeded" or preview.config.get("operation") != "preview":
+                    raise ValueError("预览尚未完成或不是有效的 Prompt 预览")
+                previous = RunRequest.model_validate(preview.config["request_payload"]).model_dump(mode="json")
+            ignored = {"name", "operation", "preview_id"}
+            current = payload.model_dump(mode="json")
+            if {k:v for k,v in previous.items() if k not in ignored} != {k:v for k,v in current.items() if k not in ignored}:
+                raise ValueError("生成参数已改变，请重新预览 Prompt")
+            plan = run_dir(str(payload.preview_id)) / "generation/prepared_samples.json"
+            if not plan.exists():
+                raise ValueError("预览的配置快照不存在，请重新预览")
+            cfg["prepared_samples"] = json.loads(plan.read_text())
     except ValueError as exc:
         raise HTTPException(422, str(exc))
     run_id = str(uuid.uuid4())
-    cfg["request_payload"] = payload.model_dump()
+    cfg["request_payload"] = payload.model_dump(mode="json")
     try:
         with session() as db:
             row = Run(id=run_id, request_key=idempotency_key, kind=cfg["kind"],
@@ -99,7 +120,7 @@ def create_run(payload: RunRequest, idempotency_key: str = Header(min_length=8, 
     except IntegrityError:
         with session() as db:
             row = db.scalar(select(Run).where(Run.request_key == idempotency_key))
-            if row.config["request_payload"] != payload.model_dump():
+            if RunRequest.model_validate(row.config["request_payload"]).model_dump(mode="json") != payload.model_dump(mode="json"):
                 raise HTTPException(409, "请求 ID 冲突")
             return serialize(row)
     try:
@@ -125,11 +146,13 @@ def run_detail(run_id: str):
         generation = directory / "generation"
         usage = generation / "usage_summary.json"
         manifest = generation / "manifest.jsonl"
+        preview = generation / "preview.json"
         try:
             result["generation"] = {
                 "usage": json.loads(usage.read_text()) if usage.exists() else None,
                 "samples": [{k:r.get(k) for k in ("sample_id", "status", "quality_tier", "errors", "trajectory_report", "vlm_report", "prompt_report")}
                             for r in (json.loads(line) for line in manifest.read_text().splitlines())] if manifest.exists() else [],
+                "preview": json.loads(preview.read_text()) if preview.exists() else None,
             }
         except (OSError, ValueError):
             result["generation"] = {"usage": None, "samples": [], "updating": True}
@@ -193,6 +216,8 @@ def publish(run_id: str):
         row = db.scalar(select(Run).where(Run.id == run_id).with_for_update())
         if not row or row.status != "succeeded":
             raise HTTPException(409, "仅完成的任务可以发布")
+        if row.config.get("operation") == "preview":
+            raise HTTPException(409,"Prompt 预览不属于已生成的数据，不能发布数据版本")
         previous = db.scalar(select(Release).where(Release.run_id == run_id))
         if previous:
             return serialize(previous)
@@ -218,7 +243,7 @@ def publish(run_id: str):
 
 
 @app.get("/api/artifacts/{artifact_id}")
-def artifact(artifact_id: str, request: Request, file: str = ""):
+def artifact(artifact_id: str, request: Request, file: str = "", archive: str = "", download: bool = False):
     with session() as db:
         row = db.get(Artifact, artifact_id)
         if not row:
@@ -233,8 +258,23 @@ def artifact(artifact_id: str, request: Request, file: str = ""):
         if not path.is_relative_to(base) or not path.exists():
             raise HTTPException(404)
         if path.is_dir():
+            if archive:
+                if archive != "tar":
+                    raise HTTPException(422,"目录打包格式仅支持 tar")
+                def stream_archive():
+                    process=subprocess.Popen(["tar","-cf","-","-C",str(path),"."],stdout=subprocess.PIPE,stderr=subprocess.DEVNULL)
+                    try:
+                        while chunk:=process.stdout.read(1024*1024):
+                            yield chunk
+                    finally:
+                        process.stdout.close()
+                        if process.poll() is None:
+                            process.terminate()
+                        process.wait(timeout=10)
+                return StreamingResponse(stream_archive(),media_type="application/x-tar",
+                    headers={"Content-Disposition":f'attachment; filename="{row.run_id}-dataset.tar"'})
             return {"files": [str(p.relative_to(path)) for p in path.rglob("*") if p.is_file()]}
-        return FileResponse(path, filename=path.name, content_disposition_type="inline")
+        return FileResponse(path, filename=path.name, content_disposition_type="attachment" if download else "inline")
 
 
 @app.get("/api/runs/{run_id}/manifest")
@@ -270,6 +310,31 @@ async def atlas(path: str, request: Request):
 
 @app.api_route("/vln-api/{path:path}", methods=["GET", "POST", "HEAD"])
 async def atlas_api(path: str, request: Request):
+    if path == "episode" and request.query_params.get("id", "").startswith("produced_"):
+        result = produced_catalog.detail(request.query_params["id"])
+        if result is None:
+            raise HTTPException(404,"产物不存在")
+        return result
+    if path == "episodes" and request.query_params.get("origin") in {"gt","seedance","produced"}:
+        try:
+            return produced_catalog.browse(dict(request.query_params),
+                min(100,max(1,int(request.query_params.get("limit",40)))),max(0,int(request.query_params.get("offset",0))))
+        except ValueError as exc:
+            raise HTTPException(422,str(exc))
+    if path == "export" and request.method == "POST":
+        from urllib.parse import parse_qs
+        body = await request.body()
+        if len(body)>16*1024*1024:
+            raise HTTPException(413,"导出参数过大")
+        try:
+            payload=json.loads(parse_qs(body.decode()).get("payload",[""])[0])
+            params=payload.get("filters",{})
+            if params.get("origin") in {"gt","seedance","produced"}:
+                produced_catalog.conditions(params)
+                return StreamingResponse(produced_catalog.export_records(params),media_type="application/json",
+                    headers={"Content-Disposition":'attachment; filename="vln-produced-manifest.json"'})
+        except (ValueError,UnicodeError,AttributeError) as exc:
+            raise HTTPException(422,"导出参数无效") from exc
     return await atlas("vln-api/" + path, request)
 
 

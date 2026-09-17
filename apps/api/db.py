@@ -42,6 +42,25 @@ class Artifact(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class DataSample(Base):
+    """Searchable produced samples; upstream source episodes remain read-only."""
+    __tablename__ = "data_samples"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), index=True)
+    origin: Mapped[str] = mapped_column(String, index=True)
+    dataset: Mapped[str] = mapped_column(String, index=True)
+    split: Mapped[str] = mapped_column(String, index=True)
+    role: Mapped[str] = mapped_column(String)
+    language: Mapped[str] = mapped_column(String, index=True)
+    scene: Mapped[str] = mapped_column(String, index=True)
+    episode_id: Mapped[str] = mapped_column(String, index=True)
+    instruction: Mapped[str] = mapped_column(Text)
+    source_record_id: Mapped[str | None] = mapped_column(String, index=True, nullable=True)
+    quality: Mapped[str] = mapped_column(String, index=True)
+    details: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class Review(Base):
     __tablename__ = "reviews"
     id: Mapped[str] = mapped_column(String, primary_key=True)
