@@ -1,0 +1,13 @@
+.venv/
+.venv-*/
+.env
+.env.*
+!.env.example
+configs/*.local.*
+runtime/
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+test-results/
+*.log

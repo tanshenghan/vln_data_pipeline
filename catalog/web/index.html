@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>数据集语义浏览器</title>
+    <link rel="stylesheet" href="styles.css?v=20260904-three-view-compact" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="app-header">
+        <div>
+          <p class="eyebrow">数据资产目录</p>
+          <h1>数据集语义浏览器</h1>
+          <p id="catalog-meta" class="catalog-meta">正在加载目录索引…</p>
+        </div>
+        <div class="header-actions">
+          <button id="show-unresolved" type="button" class="button secondary">数据目录 / 待提取</button>
+          <button id="export-manifest" type="button" class="button primary" disabled>正在准备导出…</button>
+        </div>
+      </header>
+
+      <nav class="view-switcher" role="tablist" aria-label="可视化页面">
+        <button
+          id="view-tree-tab"
+          type="button"
+          role="tab"
+          aria-controls="tree-view"
+          aria-selected="true"
+          tabindex="0"
+        >
+          分类树
+        </button>
+        <button
+          id="view-scatter-tab"
+          type="button"
+          role="tab"
+          aria-controls="scatter-view"
+          aria-selected="false"
+          tabindex="-1"
+        >
+          语义散点
+        </button>
+      </nav>
+
+      <section class="summary" aria-label="目录摘要">
+        <div><span id="stat-records">—</span><small>路径记录</small></div>
+        <div><span id="stat-tasks">—</span><small>数据集-任务</small></div>
+        <div><span id="stat-datasets">—</span><small>数据集</small></div>
+        <div><span id="stat-decisions">0</span><small>有筛选结论</small></div>
+        <div><span id="stat-converted">0</span><small>转换完成路径</small></div>
+        <div><span id="stat-partial">0</span><small>部分转换路径</small></div>
+        <div><span id="stat-reviewed">0</span><small>已人工复核</small></div>
+      </section>
+
+      <section class="filters" aria-label="筛选条件">
+        <label class="search-field">
+          <span>任务或路径搜索</span>
+          <input id="search" type="search" placeholder="例如 open drawer、厨房、franka" autocomplete="off" />
+        </label>
+        <label>
+          <span>数据域</span>
+          <select id="filter-domain"><option value="">全部</option></select>
+        </label>
+        <label>
+          <span>数据集</span>
+          <select id="filter-dataset"><option value="">全部</option></select>
+        </label>
+        <label>
+          <span>场景</span>
+          <select id="filter-scene"><option value="">全部</option></select>
+        </label>
+        <label>
+          <span>任务类型</span>
+          <select id="filter-task-type"><option value="">全部</option></select>
+        </label>
+        <label>
+          <span>筛选结论</span>
+          <select id="filter-decision">
+            <option value="">全部</option>
+            <option value="unreviewed">未标注</option>
+            <option value="keep">保留</option>
+            <option value="exclude">排除</option>
+            <option value="review">需复查</option>
+          </select>
+        </label>
+        <label>
+          <span>转换状态</span>
+          <select id="filter-conversion">
+            <option value="">全部</option>
+            <option value="converted">已转换</option>
+            <option value="partial">部分转换</option>
+            <option value="not_converted">未转换</option>
+            <option value="excluded">已排除</option>
+            <option value="unknown">状态未知</option>
+          </select>
+        </label>
+        <label>
+          <span>人工复核</span>
+          <select id="filter-processing">
+            <option value="">全部</option>
+            <option value="processed">已复核</option>
+            <option value="unprocessed">未复核</option>
+          </select>
+        </label>
+        <button id="reset-filters" type="button" class="button secondary reset-button">重置</button>
+      </section>
+
+      <section id="tree-view" role="tabpanel" aria-labelledby="view-tree-tab">
+        <nav id="breadcrumbs" class="breadcrumbs" aria-label="当前树路径"></nav>
+
+        <section class="workspace">
+          <aside class="hierarchy-sidebar" aria-label="层级目录设置">
+            <div class="sidebar-heading">
+              <p class="eyebrow">层级结构</p>
+              <h2>层级目录</h2>
+              <p>取消某一层后，树会按剩余层级重新聚合。</p>
+            </div>
+            <div id="hierarchy-levels" class="hierarchy-levels"></div>
+            <div class="hierarchy-preview">
+              <span>当前结构</span>
+              <ol id="active-hierarchy"></ol>
+            </div>
+            <button id="reset-hierarchy" type="button" class="button secondary hierarchy-reset">全选所有层级</button>
+          </aside>
+
+          <div class="tree-panel">
+            <div class="tree-toolbar" aria-label="目录摘要">
+              <span id="visible-summary" aria-live="polite">—</span>
+              <span class="tree-toolbar-note">点击目录逐层展开</span>
+            </div>
+            <div id="tree-viewport" class="tree-viewport">
+              <div id="tree" class="directory-tree" role="tree" aria-label="可选层级的数据集语义分类目录">
+                <div id="tree-canvas"></div>
+              </div>
+              <div id="tree-empty" class="empty-state" hidden>当前筛选条件下没有任务。</div>
+            </div>
+            <p class="tree-hint">像文件目录一样逐层展开；选择具体任务后，可在右侧查看路径、治理状态和回合视频。</p>
+          </div>
+
+          <aside id="detail-panel" class="detail-panel" aria-live="polite">
+            <div class="detail-placeholder">
+              <h2>选择一个节点</h2>
+              <p>查看该分支的任务数量、分类来源和原始路径，并标记保留或排除。</p>
+            </div>
+          </aside>
+        </section>
+      </section>
+
+      <section id="scatter-view" role="tabpanel" aria-labelledby="view-scatter-tab" hidden>
+        <div class="scatter-workspace">
+          <div class="scatter-panel">
+            <div class="scatter-toolbar" aria-label="散点视图控制">
+              <span id="scatter-summary" aria-live="polite">—</span>
+              <div>
+                <button id="scatter-zoom-out" type="button" class="icon-button" aria-label="散点缩小">−</button>
+                <button id="scatter-zoom-in" type="button" class="icon-button" aria-label="散点放大">＋</button>
+                <button id="scatter-reset-view" type="button" class="button secondary">复位视图</button>
+              </div>
+            </div>
+            <div id="scatter-viewport" class="scatter-viewport">
+              <svg id="scatter" role="img" aria-label="已有任务词条的二维语义向量散点">
+                <g id="scatter-grid"></g>
+                <g id="scatter-canvas"></g>
+              </svg>
+              <div id="scatter-tooltip" class="scatter-tooltip" role="tooltip" hidden></div>
+              <div id="scatter-empty" class="empty-state" hidden>当前筛选条件下没有任务词条。</div>
+            </div>
+            <p class="scatter-hint">每个点代表一个“场景 × 原生任务”词条；颜色仅表示场景。滚轮缩放，拖动画布移动。</p>
+          </div>
+
+          <aside class="scatter-side" aria-label="散点图例与任务详情">
+            <section class="scatter-method">
+              <p class="eyebrow">语义向量</p>
+              <h2>语义投影</h2>
+              <p id="scatter-method">正在加载语义向量信息…</p>
+              <p>二维坐标用于观察相似词条的相对位置，坐标轴本身没有业务单位。</p>
+            </section>
+            <section class="scatter-legend-section">
+              <h2>场景颜色</h2>
+              <div id="scatter-legend" class="scatter-legend"></div>
+            </section>
+            <section id="scatter-detail" class="scatter-detail" aria-live="polite">
+              <h2>选择一个任务词条</h2>
+              <p>悬停查看摘要，点击散点后在这里保留数据集、路径和回合信息。</p>
+            </section>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="unresolved-dialog">
+      <div class="dialog-header">
+        <div>
+          <p class="eyebrow">元数据补充</p>
+          <h2>文档数据目录与待提取任务</h2>
+        </div>
+        <button id="close-unresolved" type="button" class="icon-button" aria-label="关闭">×</button>
+      </div>
+      <p>目录册同时标记已下载和未下载数据；只有实际存在的任务路径才会进入树和统计。</p>
+      <div id="unresolved-list" class="unresolved-list"></div>
+    </dialog>
+
+    <dialog id="governance-dialog" class="governance-dialog" aria-labelledby="governance-dialog-title">
+      <div class="dialog-header">
+        <div>
+          <p class="eyebrow">数据治理</p>
+          <h2 id="governance-dialog-title">编辑数据治理标记</h2>
+        </div>
+        <button id="close-governance" type="button" class="icon-button" aria-label="关闭">×</button>
+      </div>
+
+      <div class="governance-scope" role="status">
+        <strong id="governance-scope-title">当前分支</strong>
+        <span id="governance-scope-count">—</span>
+        <p id="governance-scope-warning"></p>
+      </div>
+
+      <fieldset class="governance-fieldset">
+        <legend>筛选结论</legend>
+        <p id="governance-current-decision" class="governance-current-state">—</p>
+        <div class="governance-options" role="radiogroup" aria-label="新的筛选结论">
+          <label class="governance-option">
+            <input type="radio" name="governance-decision" value="unchanged" />
+            <span>保持原样</span>
+          </label>
+          <label class="governance-option">
+            <input type="radio" name="governance-decision" value="unreviewed" />
+            <span>未标注</span>
+          </label>
+          <label class="governance-option">
+            <input type="radio" name="governance-decision" value="keep" />
+            <span>保留</span>
+          </label>
+          <label class="governance-option">
+            <input type="radio" name="governance-decision" value="exclude" />
+            <span>排除</span>
+          </label>
+          <label class="governance-option">
+            <input type="radio" name="governance-decision" value="review" />
+            <span>需复查</span>
+          </label>
+        </div>
+        <label id="governance-exclude-field" class="governance-exclude-field" hidden>
+          <span>排除原因</span>
+          <textarea
+            id="governance-exclude-reason"
+            rows="3"
+            placeholder="例如：场景不相关、任务重复、数据质量待检查"
+          ></textarea>
+        </label>
+      </fieldset>
+
+      <fieldset class="governance-fieldset">
+        <legend>人工复核</legend>
+        <p id="governance-current-review" class="governance-current-state">—</p>
+        <div class="governance-options governance-review-options" role="radiogroup" aria-label="新的人工复核状态">
+          <label class="governance-option">
+            <input type="radio" name="governance-review" value="unchanged" />
+            <span>保持原样</span>
+          </label>
+          <label class="governance-option">
+            <input type="radio" name="governance-review" value="unprocessed" />
+            <span>未复核</span>
+          </label>
+          <label class="governance-option">
+            <input type="radio" name="governance-review" value="processed" />
+            <span>已复核</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <p class="governance-dialog-note">筛选结论和人工复核相互独立；服务器转换状态为只读。应用后自动保存在当前浏览器，并随筛选清单导出。</p>
+      <div class="governance-dialog-actions">
+        <button id="cancel-governance" type="button" class="button secondary">取消</button>
+        <button id="apply-governance" type="button" class="button primary">应用到当前范围</button>
+      </div>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <script src="catalog.js?v=20260903-atomic-action" defer></script>
+    <script src="app.js?v=20260911-file-before-governance" defer></script>
+  </body>
+</html>

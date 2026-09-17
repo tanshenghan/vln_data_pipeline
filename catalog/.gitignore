@@ -1,0 +1,24 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+node_modules/
+runtime/
+vln_sources.local.json
+
+# Local credentials and environment overrides
+.env
+.env.*
+*.secret
+
+# Generated runtime artifacts
+/catalog.json
+/catalog.js
+/video-index.json
+/catalog_sync.log
+/catalog_sync.pid
+/catalog_sync_status.json
+/instruction_inventory.jsonl
+/instruction_inventory.summary.json
+/instruction_classification.jsonl
+/instruction_classification.summary.json
+/instruction_classification.checkpoint.jsonl

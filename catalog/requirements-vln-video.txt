@@ -1,0 +1,7 @@
+# Optional: only required for LeRobot indexing and GT video generation.
+numpy>=1.24
+Pillow>=10
+imageio>=2.31
+imageio-ffmpeg>=0.4.9
+pyarrow>=14
+ijson>=3.2

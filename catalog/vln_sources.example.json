@@ -1,0 +1,25 @@
+{
+  "sources": [
+    {
+      "id": "r2r-vlnce-v1-3",
+      "dataset": "R2R",
+      "version": "VLN-CE v1.3 preprocessed",
+      "format": "vlnce",
+      "root": "/path/to/R2R_VLNCE_v1-3_preprocessed",
+      "pattern": "{split}/{split}.json.gz",
+      "splits": ["train", "val_seen", "val_unseen", "test"],
+      "roles": ["guide"]
+    },
+    {
+      "id": "rxr-vlnce-v0",
+      "dataset": "RxR",
+      "version": "VLN-CE v0",
+      "format": "vlnce",
+      "root": "/path/to/RxR_VLNCE_v0",
+      "pattern": "{split}/{split}_{role}.json.gz",
+      "splits": ["train", "val_seen", "val_unseen"],
+      "roles": ["guide", "follower"]
+    }
+  ],
+  "media_catalogs": []
+}

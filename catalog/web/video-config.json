@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "enabled": false,
+  "api_base_url": "",
+  "message": "视频播放器已就绪；服务器尚未配置公网 HTTPS 媒体入口。"
+}
