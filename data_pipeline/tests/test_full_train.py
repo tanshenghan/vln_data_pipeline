@@ -243,3 +243,37 @@ def test_real_merge_remaps_tasks_and_indices_preserves_masks_and_resumes(tmp_pat
     broken["shards"][0]["routes"][0]["episodes"][0]["instruction"]["instruction_text"] = "Wrong"
     with pytest.raises(ValueError, match="instruction"):
         verify_coverage(output, broken)
+
+
+def test_pause_stops_dispatch_and_resume_reuses_completed_shards(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    import data_pipeline.build_r2r_train as builder
+    import data_pipeline.merge_lerobot as merger
+
+    output = tmp_path / 'dataset'
+    control = tmp_path / 'control.json'
+    write_json(control, {'action': 'run'})
+    plan = dict(plan_sha256='frozen', source_episodes=3, physical_routes=3, scenes=1,
+                frames=30, rendered_frames=30, shards=[dict(id=i) for i in range(3)])
+    monkeypatch.setattr(builder, 'create_plan', lambda args: plan)
+    calls = []
+    def shard(work, plan, shard_id, gpu_id, retries):
+        calls.append(shard_id)
+        marker = work / 'shards' / f'{shard_id:05d}' / 'meta/build_shard.json'
+        marker.parent.mkdir(parents=True)
+        write_json(marker, dict(complete=True, plan_sha256='frozen', episodes=1, frames=10))
+        if shard_id == 0:
+            write_json(control, {'action': 'pause'})
+    monkeypatch.setattr(builder, 'run_shard', shard)
+    merged = []
+    monkeypatch.setattr(merger, 'merge_train', lambda *args, **kwargs: merged.append(True))
+    args = SimpleNamespace(output_dir=output, dry_run=False, workers=1, gpus=[0], retries=0,
+                           max_new_shards=None, control_file=control)
+    assert builder.run(args) == 75
+    assert calls == [0] and not merged
+    status = json.loads((tmp_path / 'dataset.work/status.json').read_text())
+    assert status['state'] == 'paused' and status['completed_shards'] == 1
+    write_json(control, {'action': 'run'})
+    builder.run(args)
+    assert calls == [0, 1, 2] and merged == [True]
+    assert json.loads((tmp_path / 'dataset.work/plan.json').read_text()) == plan

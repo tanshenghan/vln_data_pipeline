@@ -66,6 +66,15 @@ def test_reviews_persist_and_release_requires_completed_kept_run(platform):
     assert client.post('/api/reviews/'+rid,json={'decision':'keep','note':'检查通过'}).status_code==200
     assert client.get('/api/runs/'+rid).json()['reviews'][0]['note']=='检查通过'
     db.update_run(rid,status='succeeded')
+    assert client.post('/api/releases/'+rid).status_code==409
+    from workers.tasks import register
+    from contracts.check import CONTRACT_PATH
+    dataset=run_dir(rid)/'dataset';(dataset/'meta').mkdir(parents=True)
+    contract=json.loads(CONTRACT_PATH.read_text())
+    (dataset/'meta/beta_nav.json').write_text(json.dumps({**contract['metadata'],'features':contract['features'],'episodes':[{k:contract[k] for k in ('pointing_config','camera')}]}))
+    report={k:True for k in ('complete','self_contained','official_loader_all_frames','all_30_source_arrays_exact','geometry_recomputed')}
+    (dataset/'meta/platform_validation.json').write_text(json.dumps(report))
+    register(rid,'dataset',dataset)
     release=client.post('/api/releases/'+rid)
     assert release.status_code==200
     assert client.post('/api/releases/'+rid).json()['id']==release.json()['id']
@@ -254,3 +263,14 @@ def test_dataset_archive_contains_files_and_path_escape_is_denied(platform):
         assert archive.extractfile('./meta/info.json').read()==b'{"test":true}'
     escaped=client.get('/api/artifacts/'+artifact['id'],params={'file':'../../../../etc/passwd'})
     assert escaped.status_code==403
+
+
+def test_cancel_paused_batch_is_terminal_without_redispatch(platform):
+    client,dispatch=platform
+    rid=client.post('/api/runs',json={'dataset':'rxr','full_dataset':True},headers={'Idempotency-Key':'cancel-paused-batch'}).json()['id']
+    assert client.post('/api/runs/'+rid+'/pause').status_code==200
+    assert client.get('/api/runs/'+rid).json()['status']=='paused'
+    assert client.post('/api/runs/'+rid+'/cancel').status_code==200
+    assert client.get('/api/runs/'+rid).json()['status']=='cancelled'
+    assert json.loads((run_dir(rid)/'control.json').read_text())=={'action':'cancel'}
+    assert dispatch.call_count==1

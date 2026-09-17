@@ -141,3 +141,13 @@ instructions = batch["task"]
 以上空间更合适；精确体积以完成报告为准。数据格式可由官方加载器直接读取，
 BetaModel 训练代码仍需按 `action.*` 字段分别构造 CE/FM loss，并遵守独立 mask；
 标准单向量 `action` policy 不能直接替代这里的多类监督。
+
+## 平台控制与划分（2026-09-17）
+
+平台部署后，网站负责提交和维护任务；本节是运维参数说明，不是用户首次点击采集的前置步骤。
+
+- `--control-file PATH`：可选 JSON 文件，`{"action":"run"}`、`pause` 或 `cancel`。使用原子替换写入。调度器最多派发 `--workers` 个分片；暂停后不再派发新分片，等待正在执行的分片完成，返回 75。`cancel` 的合作停止返回 76；平台也可终止本地进程组。
+- 暂停保存 `.work/plan.json`、各 `build_shard.json` 和 `.work/status.json`。恢复时将 action 改为 run，以原计划重启；已完成分片不重复生产。全量合并已开始后，暂停要等待该阶段结束。
+- R2R 现在支持公开专家 GT 对应的 `train/val_seen/val_unseen`，仅 guide；实际 split 保留在 `source_selection`。test 未提供专家 GT，不允许采集。原上游 train 统计与示例仍特指 train。
+- 网页提交前流式读取源动作数并检查场景、码本和输出权限。容量预算计入 RGB、float32 深度、有效性、标签、采集/导出/合并副本及保留空间；属于未压缩保守预算，不是承诺的压缩后大小。容量不足拒绝启动，可减少范围或配置更大的数据盘。
+- 网页“每分片路线数”和“并行分片”用于全量分片模式；小批量按所选 episode 直接采集。GPU 使用已部署的 `VLN_GPU_ID`，当前工作站为 0。

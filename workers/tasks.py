@@ -79,6 +79,8 @@ def execute(run_id, stage, argv, env=None):
         if runner is not None and runner.poll() is not None and not (last / "exit.json").exists():
             raise RuntimeError(f"阶段 {stage} 执行器异常退出，无完成记录；保留现场等待核对")
         intent = control(run_id)
+        if stage == "collect_shards":
+            atomic_json(run_dir(run_id) / "control.json", {"action": intent})
         if intent == "cancel" and (last / "process.json").exists():
             info = json.loads((last / "process.json").read_text())
             if identity(info["pid"]) == info["start"]:
@@ -112,6 +114,8 @@ def execute(run_id, stage, argv, env=None):
     result = json.loads((last / "exit.json").read_text())
     if control(run_id) == "cancel":
         raise Cancelled()
+    if result["returncode"] == 75 and stage == "collect_shards":
+        raise Paused()
     if result["returncode"]:
         raise RuntimeError(f"阶段 {stage} 失败，退出码 {result['returncode']}，查看阶段日志")
     atomic_json(successful, {"digest": digest, "attempt": last.name, "finished": time.time()})
@@ -168,12 +172,13 @@ def collect_gt(run_id, cfg):
     env["BETA_DATA_ROOT"] = str(settings.dataset_root(cfg["dataset"]))
     output = directory / "dataset"
     if cfg["full_dataset"]:
+        atomic_json(directory / "control.json", {"action": control(run_id)})
         execute(run_id, "collect_shards", [settings.lerobot_python, "data_pipeline/build_r2r_train.py",
             "--output-dir", output, "--dataset", cfg["dataset"], "--split", cfg["split"],
             "--role", cfg["role"], "--languages", *cfg["languages"], "--data-root", env["BETA_DATA_ROOT"],
             "--scenes-dir", env["BETA_SCENES_DIR"], "--rvq-bundle", env["BETA_RVQ_BUNDLE"],
             "--workers", cfg["workers"], "--gpus", settings.gpu_id,
-            "--routes-per-shard", cfg["routes_per_shard"]], env)
+            "--routes-per-shard", cfg["routes_per_shard"], "--control-file", directory / "control.json"], env)
     else:
         ids = directory / "episode_ids.json"
         atomic_json(ids, cfg["episode_ids"])
@@ -189,7 +194,7 @@ def collect_gt(run_id, cfg):
         # Prove the final loader does not depend on original scratch paths, while retaining an audit copy.
         if raw.exists():
             raw.rename(directory / "capture_archive")
-    execute(run_id, "validate_lerobot", [settings.lerobot_python, "data_pipeline/validate_lerobot.py", output,
+    execute(run_id, "validate_lerobot", [settings.lerobot_python, "-m", "contracts.check", output,
         "--report", output / "meta/platform_validation.json"], env)
     metadata = json.loads((output / "meta/beta_nav.json").read_text())
     for index, episode in enumerate(metadata["episodes"]):

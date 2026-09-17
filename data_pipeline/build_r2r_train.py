@@ -251,6 +251,15 @@ def compatible_resume_plan(original, current, work):
     return original
 
 
+def requested_control(path):
+    if path is None or not path.exists():
+        return "run"
+    value = json.loads(path.read_text()).get("action")
+    if value not in {"run", "pause", "cancel"}:
+        raise ValueError("control file action must be run, pause or cancel")
+    return value
+
+
 def run(args):
     plan = create_plan(args)
     overview = {k: plan[k] for k in ("source_episodes", "physical_routes", "scenes", "frames", "rendered_frames", "plan_sha256")}
@@ -283,18 +292,29 @@ def run(args):
         if args.max_new_shards is not None:
             pending = pending[:args.max_new_shards]
         errors = []
+        control_file = getattr(args, "control_file", None)
+        next_shard = 0
         with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
-            futures = {pool.submit(run_shard, work, plan, shard_id, args.gpus[i % len(args.gpus)], args.retries): shard_id
-                       for i, shard_id in enumerate(pending)}
-            active = set(futures)
-            while active:
-                finished, active = concurrent.futures.wait(active, timeout=15,
+            futures = {}
+            while futures or next_shard < len(pending):
+                action = requested_control(control_file)
+                while action == "run" and not errors and len(futures) < args.workers and next_shard < len(pending):
+                    shard_id = pending[next_shard]
+                    future = pool.submit(run_shard, work, plan, shard_id,
+                                         args.gpus[next_shard % len(args.gpus)], args.retries)
+                    futures[future] = shard_id
+                    next_shard += 1
+                    action = requested_control(control_file)
+                if not futures:
+                    break
+                finished, _ = concurrent.futures.wait(futures, timeout=2,
                     return_when=concurrent.futures.FIRST_COMPLETED)
                 for future in finished:
+                    shard_id = futures.pop(future)
                     try:
                         future.result()
                     except Exception as exc:
-                        errors.append(dict(shard_id=futures[future], error=repr(exc)))
+                        errors.append(dict(shard_id=shard_id, error=repr(exc)))
                 done = completed_shards(work, plan)
                 status = dict(state="generating", plan_sha256=plan["plan_sha256"], total_shards=len(plan["shards"]),
                     completed_shards=len(done), episodes=sum(s["episodes"] for s in done.values()),
@@ -311,6 +331,16 @@ def run(args):
                 expected_episodes=plan["source_episodes"], expected_frames=plan["frames"], updated_unix=time.time()))
             raise RuntimeError(f"{len(errors)} shards failed; successful shards are retained, resume to retry")
         done = completed_shards(work, plan)
+        action = requested_control(control_file)
+        if action in {"pause", "cancel"}:
+            status = dict(state="paused" if action == "pause" else "cancelled", plan_sha256=plan["plan_sha256"],
+                          completed_shards=len(done), total_shards=len(plan["shards"]),
+                          episodes=sum(s["episodes"] for s in done.values()),
+                          frames=sum(s["frames"] for s in done.values()),
+                          expected_episodes=plan["source_episodes"], expected_frames=plan["frames"])
+            write_json(work / "status.json", status)
+            print(json.dumps(status), flush=True)
+            return 75 if action == "pause" else 76
         if len(done) != len(plan["shards"]):
             print("Pilot limit reached; dataset is incomplete. Resume without --max-new-shards.", flush=True)
             return
@@ -339,6 +369,7 @@ def arguments():
     parser.add_argument("--retries", type=int, default=1)
     parser.add_argument("--max-new-shards", type=int, help="Pilot limit; keep the same full plan for subsequent resume")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--control-file", type=Path, help='Optional JSON control file: {"action":"run|pause|cancel"}')
     parser.add_argument("--worker-plan", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--shard-id", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--gpu-id", type=int, help=argparse.SUPPRESS)
@@ -363,4 +394,4 @@ if __name__ == "__main__":
     if args.worker_plan is not None:
         worker(args.worker_plan, args.shard_id, args.gpu_id)
     else:
-        run(args)
+        raise SystemExit(run(args) or 0)

@@ -218,3 +218,17 @@ def test_rxr_merge_validates_language_identity_and_rejects_other_splits(tmp_path
     write_json(metadata_path, metadata)
     with pytest.raises(ValueError, match="source splits"):
         merge_datasets(shards, tmp_path / "bad_merge", "beta-nav/rxr-test", tmp_path / "bad_journal")
+
+
+@pytest.mark.parametrize('split', ['val_seen', 'val_unseen'])
+def test_r2r_validation_split_retains_source_selection(tmp_path, split):
+    episodes, gt = inputs()
+    folder = tmp_path / split
+    folder.mkdir()
+    for filename, data in [(f'{split}.json.gz', {'episodes': episodes}), (f'{split}_gt.json.gz', gt)]:
+        with gzip.open(folder / filename, 'wt') as stream:
+            json.dump(data, stream)
+    loaded, actual_gt, meta = load_source(tmp_path, 'r2r', split=split)
+    assert loaded == episodes and actual_gt == gt
+    assert meta['split'] == split and meta['dataset'] == 'r2r'
+    assert str(folder) in meta['episode_file']

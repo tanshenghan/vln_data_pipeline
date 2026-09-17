@@ -1,0 +1,366 @@
+{
+  "id": "beta_nav_lerobot_v1/lightnav_470x280",
+  "upstream_commit": "0e0e5cbff81ac54608cd4aef31e21c5458fbd162",
+  "definition": "data_pipeline/docs/LEROBOT_FORMAT.md",
+  "metadata": {
+    "format": "beta_nav_lerobot_v1",
+    "lerobot_version": "0.4.4",
+    "codebase_version": "v3.0",
+    "time_basis": "frame_index",
+    "timestamp_kind": "synthetic",
+    "fps": 1,
+    "physical_dt_s": null
+  },
+  "features": {
+    "observation.world_from_body": {
+      "dtype": "float64",
+      "shape": [
+        4,
+        4
+      ],
+      "names": null
+    },
+    "observation.world_from_camera_cv": {
+      "dtype": "float64",
+      "shape": [
+        4,
+        4
+      ],
+      "names": null
+    },
+    "observation.world_from_depth_camera_cv": {
+      "dtype": "float64",
+      "shape": [
+        4,
+        4
+      ],
+      "names": null
+    },
+    "action.fm.waypoints_ego": {
+      "dtype": "float32",
+      "shape": [
+        30,
+        3
+      ],
+      "names": null
+    },
+    "action.fm.clean_se2_diff": {
+      "dtype": "float32",
+      "shape": [
+        30,
+        3
+      ],
+      "names": null
+    },
+    "action.fm.valid_mask": {
+      "dtype": "bool",
+      "shape": [
+        30
+      ],
+      "names": null
+    },
+    "action.fm.future_frame_ids": {
+      "dtype": "int64",
+      "shape": [
+        30
+      ],
+      "names": null
+    },
+    "action.fm.vertical_offset_m": {
+      "dtype": "float32",
+      "shape": [
+        30
+      ],
+      "names": null
+    },
+    "action.rvq.codes": {
+      "dtype": "int32",
+      "shape": [
+        3
+      ],
+      "names": null
+    },
+    "action.rvq.valid_mask": {
+      "dtype": "bool",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "action.rvq.reconstruction": {
+      "dtype": "float32",
+      "shape": [
+        10,
+        3
+      ],
+      "names": null
+    },
+    "action.rvq.ade_m": {
+      "dtype": "float32",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "action.apos.pixel": {
+      "dtype": "float64",
+      "shape": [
+        2
+      ],
+      "names": null
+    },
+    "action.apos.world": {
+      "dtype": "float64",
+      "shape": [
+        3
+      ],
+      "names": null
+    },
+    "action.apos.token_id": {
+      "dtype": "int32",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "action.apos.valid_mask": {
+      "dtype": "bool",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "action.apos.pixel_rc": {
+      "dtype": "int32",
+      "shape": [
+        2
+      ],
+      "names": null
+    },
+    "action.apos.grid_rc": {
+      "dtype": "int32",
+      "shape": [
+        2
+      ],
+      "names": null
+    },
+    "action.apos.grid_id": {
+      "dtype": "int32",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "action.apos.target_world": {
+      "dtype": "float64",
+      "shape": [
+        3
+      ],
+      "names": null
+    },
+    "action.apos.target_frame_id": {
+      "dtype": "int32",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "action.opos.pixel": {
+      "dtype": "float32",
+      "shape": [
+        2
+      ],
+      "names": null
+    },
+    "action.opos.world": {
+      "dtype": "float32",
+      "shape": [
+        3
+      ],
+      "names": null
+    },
+    "action.opos.token_id": {
+      "dtype": "int32",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "action.opos.valid_mask": {
+      "dtype": "bool",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "action.opos.pixel_rc": {
+      "dtype": "int32",
+      "shape": [
+        2
+      ],
+      "names": null
+    },
+    "action.opos.grid_rc": {
+      "dtype": "int32",
+      "shape": [
+        2
+      ],
+      "names": null
+    },
+    "action.opos.grid_id": {
+      "dtype": "int32",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "action.opos.target_world": {
+      "dtype": "float64",
+      "shape": [
+        3
+      ],
+      "names": null
+    },
+    "action.opos.target_frame_id": {
+      "dtype": "int32",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "observation.images.rgb": {
+      "dtype": "image",
+      "shape": [
+        280,
+        470,
+        3
+      ],
+      "names": [
+        "height",
+        "width",
+        "channels"
+      ]
+    },
+    "observation.depth_m": {
+      "dtype": "float32",
+      "shape": [
+        280,
+        470
+      ],
+      "names": null
+    },
+    "observation.depth_valid": {
+      "dtype": "bool",
+      "shape": [
+        280,
+        470
+      ],
+      "names": null
+    },
+    "source.episode_id": {
+      "dtype": "string",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "source.scene_id": {
+      "dtype": "string",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "action.rvq.tokens": {
+      "dtype": "string",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "action.apos.token": {
+      "dtype": "string",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "action.apos.state": {
+      "dtype": "string",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "action.apos.reason": {
+      "dtype": "string",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "action.opos.token": {
+      "dtype": "string",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "action.opos.state": {
+      "dtype": "string",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "action.opos.reason": {
+      "dtype": "string",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "action.explicit_stop": {
+      "dtype": "bool",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "action.stop_loss_valid": {
+      "dtype": "bool",
+      "shape": [
+        1
+      ],
+      "names": null
+    }
+  },
+  "pointing_config": {
+    "horizon": 10,
+    "tail_policy": "terminal",
+    "path_spacing_m": 0.02,
+    "depth_tolerance_m": 0.05,
+    "depth_relative_tolerance": 0.01,
+    "opos_mode": "terminal_ground",
+    "opos_visibility_window": "last_half",
+    "unknown_token_id": 0
+  },
+  "camera": {
+    "width": 470,
+    "height": 280,
+    "hfov_deg": 120.0,
+    "position_body_native": [
+      0,
+      0.88,
+      0
+    ],
+    "orientation_euler": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "depth_unit": "metre",
+    "depth_type": "camera_z",
+    "depth_normalized": false
+  }
+}

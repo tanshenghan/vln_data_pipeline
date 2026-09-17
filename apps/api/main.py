@@ -18,6 +18,8 @@ from .catalog_service import browse, detail, resolve_selection
 from . import produced_catalog
 from .preflight import health, validate_gt
 from workers.tasks import execute_run, run_dir
+from workers.command_runner import atomic_json
+from contracts.check import check_metadata
 
 
 @asynccontextmanager
@@ -46,6 +48,17 @@ def get_health():
     result = health()
     with session() as db:
         result["runs"] = dict(db.execute(select(Run.status, func.count()).group_by(Run.status)).all())
+        ids = list(db.scalars(select(Run.id).where(Run.kind == "seedance")))
+    cost, counted = 0.0, 0
+    for run_id in ids:
+        try:
+            usage = json.loads((run_dir(run_id) / "generation/usage_summary.json").read_text())
+            if usage.get("estimated_cost_cny") is not None:
+                cost += float(usage["estimated_cost_cny"])
+                counted += 1
+        except (OSError, ValueError):
+            continue
+    result["generation_cost"] = {"estimated_cny": round(cost, 4), "runs_with_usage": counted, "actual_bill": False}
     return result
 
 
@@ -89,7 +102,7 @@ def create_run(payload: RunRequest, idempotency_key: str = Header(min_length=8, 
         if not cfg["full_dataset"] and (cfg["kind"] == "gt" or cfg["source_ids"] or cfg["episode_ids"]):
             cfg = resolve_selection(cfg)
         if cfg["kind"] == "gt":
-            validate_gt(cfg)
+            cfg["capacity"] = validate_gt(cfg)
         elif not health()["seedance_ready"]:
             raise ValueError("Seedance API 密钥尚未配置，生成任务未提交")
         if payload.preview_id:
@@ -131,6 +144,19 @@ def create_run(payload: RunRequest, idempotency_key: str = Header(min_length=8, 
     return result
 
 
+@app.post("/api/preflight")
+def preflight(payload: RunRequest):
+    if payload.kind != "gt":
+        raise HTTPException(422, "此预检用于 GT 采集")
+    try:
+        cfg = payload.model_dump(mode="json")
+        if not cfg["full_dataset"]:
+            cfg = resolve_selection(cfg)
+        return validate_gt(cfg)
+    except (ValueError, OSError) as exc:
+        raise HTTPException(422, str(exc))
+
+
 @app.get("/api/runs/{run_id}")
 def run_detail(run_id: str):
     with session() as db:
@@ -153,6 +179,8 @@ def run_detail(run_id: str):
                 "samples": [{k:r.get(k) for k in ("sample_id", "status", "quality_tier", "errors", "trajectory_report", "vlm_report", "prompt_report")}
                             for r in (json.loads(line) for line in manifest.read_text().splitlines())] if manifest.exists() else [],
                 "preview": json.loads(preview.read_text()) if preview.exists() else None,
+                "provider_tasks": [json.loads(p.read_text()) for p in sorted((generation / "provider_tasks").glob("*.json"))],
+                "cancellation": "取消仅停止本地执行；已提交的云端任务未调用服务方取消接口，可能继续执行和计费。",
             }
         except (OSError, ValueError):
             result["generation"] = {"usage": None, "samples": [], "updating": True}
@@ -166,12 +194,13 @@ def logs(run_id: str):
     with session() as db:
         if not db.get(Run, run_id):
             raise HTTPException(404, "任务不存在")
-    logs = sorted((run_dir(run_id) / "stages").glob("*/attempt-*/output.log"), key=lambda p:p.stat().st_mtime)
+    logs = sorted([*(run_dir(run_id) / "stages").glob("*/attempt-*/output.log"),
+                   *(run_dir(run_id) / "dataset.work/logs").glob("*.log")], key=lambda p:p.stat().st_mtime)
     pieces = []
     for path in logs[-8:]:
         with path.open("rb") as handle:
             handle.seek(max(0, path.stat().st_size - 16000))
-            pieces.append(f"[{path.parent.parent.name} / {path.parent.name}]\n" + handle.read().decode("utf-8", errors="replace"))
+            pieces.append(f"[{path.relative_to(run_dir(run_id))}]\n" + handle.read().decode("utf-8", errors="replace"))
     return {"text": "\n".join(pieces)}
 
 
@@ -191,12 +220,17 @@ def operate(run_id: str, action: str):
             row.control, row.status = "run", "queued"
         else:
             row.control = action
-            if row.status == "queued":
+            if row.status == "queued" or (action == "cancel" and row.status in {"paused", "failed"}):
                 row.status = "paused" if action == "pause" else "cancelled"
         row.updated_at = now()
+        intent = row.control
+        full_dataset = row.config.get("full_dataset", False)
+    if full_dataset:
+        run_dir(run_id).mkdir(parents=True, exist_ok=True)
+        atomic_json(run_dir(run_id) / "control.json", {"action": intent})
     if action in {"retry", "resume"}:
         execute_run.delay(run_id)
-    return {"ok": True, "note": "暂停将在当前阶段完成后生效" if action == "pause" else "操作已记录"}
+    return {"ok": True, "note": ("停止派发新分片，正在执行的分片完成后暂停" if full_dataset else "暂停将在当前阶段完成后生效") if action == "pause" else "操作已记录"}
 
 
 @app.post("/api/reviews/{run_id}")
@@ -225,6 +259,20 @@ def publish(run_id: str):
         if not review or review.decision != "keep":
             raise HTTPException(409, "请先审核并保留该任务产物")
         artifacts = db.scalars(select(Artifact).where(Artifact.run_id == run_id)).all()
+        if not artifacts or any(not Path(a.path).exists() for a in artifacts):
+            raise HTTPException(409, "没有完整产物可供发布")
+        if row.kind == "gt":
+            datasets = [a for a in artifacts if a.kind == "dataset"]
+            if not datasets:
+                raise HTTPException(409, "缺少正式 GT 数据集")
+            for artifact in datasets:
+                try:
+                    check_metadata(artifact.path)
+                    report = json.loads((Path(artifact.path) / "meta/platform_validation.json").read_text())
+                    if not all(report.get(k) is True for k in ("complete", "self_contained", "official_loader_all_frames", "all_30_source_arrays_exact", "geometry_recomputed")):
+                        raise ValueError("缺少完整独立校验结果")
+                except (OSError, ValueError, KeyError) as exc:
+                    raise HTTPException(409, "GT 契约或独立校验不通过：" + str(exc)) from exc
         manifest = {"run": serialize(row), "artifacts": [serialize(a) for a in artifacts], "files": {}}
         for a in artifacts:
             path = Path(a.path)

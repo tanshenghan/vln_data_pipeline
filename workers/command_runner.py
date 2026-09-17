@@ -8,12 +8,21 @@ import signal
 import subprocess
 import sys
 import time
+import tempfile
 
 
 def atomic_json(path, data):
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False))
-    tmp.replace(path)
+    # API and Worker can both update a run's control file.
+    path = Path(path)
+    with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, prefix=path.name + ".", delete=False) as handle:
+        tmp = Path(handle.name)
+        try:
+            json.dump(data, handle, ensure_ascii=False)
+            handle.flush()
+            os.fsync(handle.fileno())
+            tmp.replace(path)
+        finally:
+            tmp.unlink(missing_ok=True)
 
 
 def identity(pid):

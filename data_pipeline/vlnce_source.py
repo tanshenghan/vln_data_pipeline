@@ -32,8 +32,8 @@ def source_paths(root, dataset="r2r", split="train", role="guide"):
         raise ValueError("expected dataset r2r/rxr and role guide/follower")
     if split not in SPLITS:
         raise ValueError("only train/val_seen/val_unseen have supported expert GT; test_challenge is excluded")
-    if dataset == "r2r" and (split != "train" or role != "guide"):
-        raise ValueError("the existing R2R pipeline supports train only, without follower annotations")
+    if dataset == "r2r" and role != "guide":
+        raise ValueError("R2R has no follower annotations")
     stem = split if dataset == "r2r" else f"{split}_{role}"
     root = Path(root)
     paths = (root / split / f"{stem}.json.gz", root / split / f"{stem}_gt.json.gz")

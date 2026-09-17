@@ -12,13 +12,8 @@ apos/opos 视频，无需保留采集 scratch。读取方式、预览命令和�
 RxR 使用 [run_rxr.sh](run_rxr.sh) 接入同一套回放、四类 GT 和 Parquet 导出，
 支持 train/val_seen/val_unseen、guide/follower 及语言筛选；各来源分别保存。
 输入范围、命令和元数据约定见 [RXR_LEROBOT.md](docs/RXR_LEROBOT.md)。
-BetaModel 的训练读取入口位于 `src/lightnav/dataloader/`：
-[Train_Lerobot_DataLoader.py](../src/lightnav/dataloader/Train_Lerobot_DataLoader.py)，
-按需读取 Parquet，复用 checkpoint 的 SlowFast 采样，直接产出 `BetaTrainBatch`。
-独立训练读取环境、batch 字段、mask 与使用示例见 [TRAIN_LEROBOT_DATALOADER.md](../docs/TRAIN_LEROBOT_DATALOADER.md)。
-[prepare_data.py](../src/lightnav/training/prepare_data.py) 生成训练清单和仅从训练有效动作计算的归一化尺度；
-当前 R2R 使用全部 episode 训练，不划分 validation。训练环境、manifest 和报告已迁出本目录；
-已有 LeRobot 数据可以直接训练，不依赖本目录代码。训练入口及参数见 [TRAIN_BETANAV.md](../docs/TRAIN_BETANAV.md)。
+本项目仅迁入数据生产所需依赖；模型训练、SlowFast 数据加载器和机器人推理仍属于上游 Beta_Nav，不包含在本仓库中。正式 LeRobot 数据保持独立可读。
+网站直接采集支持 R2R/RxR 公开专家划分；全量任务的暂停、分片续跑和容量预检见 [平台控制说明](docs/FULL_R2R_TRAIN.md#平台控制与划分2026-09-17)。
 先读 [最终流程与人工检查顺序](docs/FINAL_PIPELINE.md)，再按下表查看代码。
 清理时的冻结代码包和逐文件哈希位于 [releases/](releases/README.md)，
 这些历史快照不包含后续 pointing_zero 修改。

@@ -1,7 +1,7 @@
 # VLN_Data_Pipeline 总体架构与集成计划
 
 - 编写日期：2026-09-17
-- 状态：实施中；实际部署与验收进度见 `IMPLEMENTATION_STATUS.md`
+- 状态：本阶段已实施部署；实际验收证据与容量边界见 `IMPLEMENTATION_STATUS.md`
 - 项目位置：`/home/beta/hongyu.yao/VLN_Data_Pipeline`
 - 本文范围：整合现有 GT 采集管线、Seedance 视频生成管线和数据浏览网站，明确模块边界、数据契约及实施顺序。
 
@@ -90,7 +90,7 @@ flowchart TB
 
 ## 4. 项目目录与模块职责
 
-以下是目标结构；本次仅创建本规划文档。
+以下是项目结构；实现及部署证据见 `IMPLEMENTATION_STATUS.md`。
 
 ```text
 VLN_Data_Pipeline/
