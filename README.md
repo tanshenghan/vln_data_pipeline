@@ -1,7 +1,14 @@
 # VLN Data Pipeline
 
-工作站上的 VLN 数据生产与浏览平台。GT 格式沿用 BetaNav；Seedance 保留现有视频与估计轨迹，缺失信息仅标注。
+工作站上的 VLN 数据生产与浏览平台。网站保留原 VLN Atlas 的布局与样式，在顶部接入 GT 采集、Seedance 生成、任务与审核和工作站状态。
 
-架构与验收要求见 [总体计划](docs/ARCHITECTURE_PLAN.md)。迁入源码版本见 [来源锁定](contracts/upstream_versions.json)。
+GT 格式沿用 BetaNav，网页提交后在工作站真实运行 Habitat 采集、标注、LeRobot 导出与独立校验。Seedance 保留原始视频和现有 VGGT 估计轨迹；深度、可信标定和监督信息缺失时仅标注，不补全或伪造 GT。
 
-开发部署进行中；实际就绪状态以部署验证报告为准。
+当前部署：**http://192.168.1.66:8800/**（工作站所在网络）。R2R/RxR 小样本真实采集已通过，Seedance 实际生成、VGGT 和原始产物展示已验证，部分高级功能仍在验收。
+
+- [架构与验收计划](docs/ARCHITECTURE_PLAN.md)
+- [实施与验证状态](docs/IMPLEMENTATION_STATUS.md)
+- [配置及服务维护](docs/CONFIGURATION.md)
+- [上游固定版本](contracts/upstream_versions.json)
+
+生产资源位于仓库外，机器配置、密钥、运行结果和环境不提交 Git。

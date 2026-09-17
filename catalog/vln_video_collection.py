@@ -77,6 +77,10 @@ def build_collection(catalog, sources, output, video_root, renderer, python):
                                 unmatched += 1
                                 continue
                             record = matches[0]
+                            # A platform may collect the same source in several runs.
+                            # Ordered source manifests select the newest available version.
+                            if db.execute("SELECT 1 FROM records WHERE record_id=?", (record["id"],)).fetchone():
+                                continue
                             physical = {k: item.get(k) for k in ("scene_id", "frames", "camera", "pointing_config", "observation_hashes", "array_hashes")}
                             physical["samples_sha256"] = item.get("source_hashes", {}).get("samples.jsonl")
                             required = {"observation.world_from_body", "observation.world_from_camera_cv", "action.fm.waypoints_ego",

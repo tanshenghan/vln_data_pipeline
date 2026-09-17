@@ -11,10 +11,10 @@ from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from data_web.vln_catalog import build_database, connect, overview
-from data_web.vln_gt_video import GTVideoService, build_index
-from data_web.vln_serve import VLNRequestHandler
-from data_web.vln_video_collection import build_collection
+from catalog.vln_catalog import build_database, connect, overview
+from catalog.vln_gt_video import GTVideoService, build_index
+from catalog.vln_serve import VLNRequestHandler
+from catalog.vln_video_collection import build_collection
 
 
 class GTVideoTests(unittest.TestCase):
@@ -104,7 +104,7 @@ class GTVideoTests(unittest.TestCase):
             output.with_suffix(".json").write_text(json.dumps(self.report(identifier)))
             return type("Result", (), {"returncode": 0})()
 
-        with patch("data_web.vln_gt_video.subprocess.run", side_effect=run) as mocked:
+        with patch("catalog.vln_gt_video.subprocess.run", side_effect=run) as mocked:
             self.service.request(identifier)
             self.assertTrue(entered.wait(5))
             for _ in range(5):

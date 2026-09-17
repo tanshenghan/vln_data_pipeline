@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import sqlite3
+import threading
 from datetime import datetime, timezone
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -26,6 +27,24 @@ class VLNRequestHandler(SimpleHTTPRequestHandler):
     database: Path
     geometry_path: Path | None = None
     gt_videos: GTVideoService | None = None
+    video_index: Path | None = None
+    video_index_stamp = None
+    video_index_lock = threading.Lock()
+    catalog_metadata: dict = {}
+
+    def refresh_videos(self):
+        cls = type(self)
+        if not cls.video_index or not cls.video_index.exists():
+            return
+        with cls.video_index_lock:
+            stat = cls.video_index.stat()
+            stamp = (stat.st_ino, stat.st_mtime_ns, stat.st_size)
+            if stamp != cls.video_index_stamp:
+                updated = GTVideoService(cls.video_index, cls.catalog_metadata)
+                cls.gt_videos = updated
+                cls.video_index_stamp = stamp
+            # Snapshot for this request while a new collection is being published.
+            self.gt_videos = cls.gt_videos
 
     def media_column(self):
         return "id IN (SELECT record_id FROM gt_videos.records)" if self.gt_videos else "has_media"
@@ -60,6 +79,7 @@ class VLNRequestHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         """Stream a manifest with local reviews; nothing is stored server-side."""
+        self.refresh_videos()
         parsed = urlsplit(self.path)
         if parsed.path == "/vln-api/gt-video":
             params = parse_qs(parsed.query)
@@ -102,6 +122,7 @@ class VLNRequestHandler(SimpleHTTPRequestHandler):
                 db.close()
 
     def do_GET(self):
+        self.refresh_videos()
         parsed = urlsplit(self.path)
         if not parsed.path.startswith("/vln-api/"):
             if parsed.path not in {"/", "/index.html", "/app.js", "/styles.css", "/favicon.svg"}:
@@ -273,6 +294,8 @@ def serve(database: Path, host: str, port: int, geometry_path: Path | None = Non
     VLNRequestHandler.database = database.resolve()
     VLNRequestHandler.geometry_path = geometry_path.resolve() if geometry_path else None
     videos_path = videos_path or database.with_name("vln-videos.sqlite")
+    VLNRequestHandler.video_index = videos_path
+    VLNRequestHandler.catalog_metadata = meta
     VLNRequestHandler.gt_videos = GTVideoService(videos_path, meta) if videos_path.is_file() else None
     handler = partial(VLNRequestHandler, directory=str(Path(__file__).with_name("vln_web")))
     with ThreadingHTTPServer((host, port), handler) as server:

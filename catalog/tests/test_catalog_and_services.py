@@ -16,10 +16,10 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 from zipfile import ZipFile
 
-from scripts.dataset_semantic_explorer.catalog import localize_native_scene, scan_catalog, write_catalog
-from scripts.dataset_semantic_explorer.conversion_status import CONVERSION_STATUSES, enrich_conversion_status
-from scripts.dataset_semantic_explorer.embedding import aggregate_task_terms, project_embeddings
-from scripts.dataset_semantic_explorer.serve import ExplorerRequestHandler
+from catalog.catalog import localize_native_scene, scan_catalog, write_catalog
+from catalog.conversion_status import CONVERSION_STATUSES, enrich_conversion_status
+from catalog.embedding import aggregate_task_terms, project_embeddings
+from catalog.serve import ExplorerRequestHandler
 
 
 class DatasetSemanticCatalogTest(unittest.TestCase):

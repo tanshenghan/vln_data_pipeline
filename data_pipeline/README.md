@@ -189,3 +189,9 @@ timestamp 等于帧序号。GT 视频位于
 此前 2864 等原有数据集目录已被清空，reports/ 中的相关数字示例属于历史记录。
 零 token 更新历史见 [pointing_zero_update_20260912.json](reports/pointing_zero_update_20260912.json)。
 历史兼容入口 scripts/collect_beta_nav.py 保留，其实现转发到本目录。
+
+## 工作站平台接入
+
+统一网页入口与服务维护说明见 [平台配置](../docs/CONFIGURATION.md)。平台调用本目录既有采集、校验和导出入口，生产资源由 `BETA_DATA_ROOT`、`BETA_SCENES_DIR`、`BETA_RVQ_BUNDLE` 及解释器配置指定。GT 字段和标签含义保持不变。
+
+Habitat 与 LeRobot 使用独立 Python/NumPy 环境。投影结果的跨环境浮点复算允许 `1e-9` 绝对舍入误差，离散 token、状态、mask 与字段仍严格比较；导出环境 NumPy 固定为 1.26.4。

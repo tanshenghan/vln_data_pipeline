@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.dataset_semantic_explorer.instruction_classification import (
+from catalog.instruction_classification import (
     ATOMIC_ACTIONS,
     FORCED_SCENE_SIM,
     FORCED_SCENE_SSV2,

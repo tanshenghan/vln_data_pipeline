@@ -5,9 +5,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.dataset_semantic_explorer.classification_overlay import enrich_instruction_classification
-from scripts.dataset_semantic_explorer.instruction_classification import TAXONOMY_VERSION
-from scripts.dataset_semantic_explorer.instruction_inventory import instruction_hash
+from catalog.classification_overlay import enrich_instruction_classification
+from catalog.instruction_classification import TAXONOMY_VERSION
+from catalog.instruction_inventory import instruction_hash
 
 
 class ClassificationOverlayTest(unittest.TestCase):

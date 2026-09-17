@@ -1,0 +1,59 @@
+/* Atlas owns the shared palette, typography, controls and browsing layout.
+   Additional styles are limited to platform navigation and production pages. */
+.platform-nav{display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-left:auto}
+.platform-nav a{color:var(--muted);text-decoration:none;font-size:.875rem;white-space:nowrap;padding:9px 11px;border-radius:7px}
+.platform-nav a:hover,.platform-nav a.active{color:var(--accent);background:var(--accent-soft)}
+.source-pipeline-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.source-pipeline-actions button{color:var(--accent);font-size:.8rem;min-height:34px;padding:7px 10px}
+.pipeline-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:22px}
+.pipeline-heading h2{font-size:1.2rem}
+.pipeline-page a{color:var(--accent);text-decoration:none}
+.pipeline-page a:hover{text-decoration:underline}
+.pipeline-page .button{display:inline-flex;align-items:center;min-height:40px;border:1px solid var(--line);border-radius:7px;padding:9px 13px;font-size:.875rem;background:var(--surface)}
+.pipeline-page .stats{grid-template-columns:repeat(4,1fr)}
+.pipeline-page article,.pipeline-page .form-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:24px}
+.pipeline-page .columns{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:18px 0}
+.pipeline-page .check{display:inline-block;font-size:.8rem;color:var(--teal);background:#e1f3f1;padding:7px 10px;border-radius:4px;margin:0 7px 8px 0}
+.pipeline-page .check.no{color:#825400;background:#fff2d9}
+.pipeline-page .muted{font-size:.8rem;line-height:1.7}
+.pipeline-page .contract-row{padding:12px 0;font-size:.875rem;border-bottom:1px solid var(--line)}
+.pipeline-page .contract-row:last-child{border:0}
+.pipeline-page .contract-row p{margin-top:8px;color:var(--muted);line-height:1.7}
+.pipeline-page .section-title,.pipeline-page .run-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:18px 0}
+.pipeline-page .section-title h3{margin:0}
+.pipeline-page table{border-collapse:collapse;width:100%;background:var(--surface);font-size:.875rem}
+.pipeline-page th,.pipeline-page td{padding:16px 13px;border-bottom:1px solid var(--line);text-align:left}
+.pipeline-page th{color:var(--muted);background:var(--accent-soft);font-size:.8rem;font-weight:500}
+.pipeline-page td small{display:block;color:var(--muted);margin-top:5px}
+.pipeline-page .status{border-radius:4px;background:#edf1f7;padding:4px 7px;font-size:.75rem;white-space:nowrap}
+.pipeline-page .status.succeeded{background:#e1f3f1;color:var(--teal)}
+.pipeline-page .status.failed{background:#ffedf0;color:#a3293b}
+.pipeline-page .status.running,.pipeline-page .status.queued{background:var(--accent-soft);color:var(--accent)}
+.pipeline-page .toolbar,.pipeline-page .pager,.pipeline-page .run-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.pipeline-page .toolbar input{flex:1}.pipeline-page .toolbar select{width:160px}
+.pipeline-page .pager{justify-content:center;margin:20px}
+.pipeline-page .intro{margin:0 0 22px}.pipeline-page .intro h2{font-size:1.2rem;margin:10px 0}
+.pipeline-page .intro p{color:var(--muted);font-size:.875rem;line-height:1.8}
+.pipeline-page .label{font-size:.75rem;color:var(--accent)}
+.pipeline-page .form-card{max-width:1000px}
+.pipeline-page .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 22px}
+.pipeline-page label{display:block;font-size:.875rem;color:var(--muted);margin-bottom:20px}
+.pipeline-page label input,.pipeline-page label select,.pipeline-page label textarea{display:block;margin-top:7px}
+.pipeline-page textarea{width:100%;padding:12px;resize:vertical}
+.pipeline-page input[type=checkbox]{width:16px;height:16px;display:inline-block;margin:0 8px 0 0;vertical-align:middle;accent-color:var(--accent)}
+.pipeline-page .form-note{background:var(--accent-soft);padding:20px;margin:22px 0;font-size:.875rem;border-radius:7px}
+.pipeline-page .form-note p{color:var(--muted);font-size:.8rem;line-height:1.8;margin-top:8px}
+.pipeline-page .form-card>button{margin-right:14px}
+.pipeline-page .stage{display:inline-block;border:1px solid var(--line);padding:10px 13px;margin:4px;border-radius:7px;font-size:.8rem}
+.pipeline-page .stage.done{background:#e1f3f1;color:var(--teal)}
+.pipeline-page .log{background:#182235;color:#e2e8f0;padding:20px;border-radius:7px;font-size:.8rem;white-space:pre-wrap;word-break:break-word;max-height:440px;overflow:auto;line-height:1.6}
+.pipeline-page .artifact-list{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.pipeline-page .artifact{padding:18px;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.pipeline-page .artifact a{font-size:.875rem;overflow-wrap:anywhere}
+.pipeline-page .artifact video{display:block;width:100%;margin-top:12px;border-radius:7px}
+.pipeline-page .review-form{display:flex;gap:10px;margin:15px 0;flex-wrap:wrap}
+.pipeline-page .review-form input{flex:1}.pipeline-page .review-form select{width:130px}
+.pipeline-page .error{color:#a3293b;background:#ffedf0;padding:15px;border-radius:7px}
+.pipeline-page details{margin:15px 0}.pipeline-page summary{font-size:.875rem;color:var(--accent)}
+@media(max-width:1250px){.header{flex-wrap:wrap}.platform-nav{order:3;flex-basis:100%;margin-left:0}.header-end{margin-left:auto}}
+@media(max-width:760px){.platform-nav{gap:2px}.platform-nav a{padding:8px;font-size:.8rem}.pipeline-page .form-grid,.pipeline-page .columns,.pipeline-page .artifact-list{grid-template-columns:1fr}.pipeline-page .stats{grid-template-columns:1fr 1fr}.pipeline-page .stats>div:last-child{grid-column:auto}.pipeline-page .run-head,.pipeline-heading{align-items:flex-start;flex-direction:column}.pipeline-page table{font-size:.75rem}.pipeline-page td,.pipeline-page th{padding:10px 6px}.pipeline-page .form-card{padding:18px}}

@@ -175,6 +175,7 @@ function renderDetail(record) {
     const timings = element("div", "timings"); for (const word of record.timed_instruction) { const item = element("span", "", word.word || ""); item.append(element("small", "", `${word.start_time ?? "?"}–${word.end_time ?? "?"}s`)); timings.append(item); } disclosure.append(timings);
   }
   provenance.append(disclosure); detail.append(provenance);
+  window.dispatchEvent(new CustomEvent("vln:record-selected", { detail: record }));
 }
 
 function projectRoute(points, axes = [0, 2], width = 620, height = 300) {

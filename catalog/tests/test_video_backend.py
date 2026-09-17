@@ -11,13 +11,13 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from scripts.dataset_semantic_explorer.video_index import (
+from catalog.video_index import (
     build_video_index,
     format_segment_video_relative_path,
     format_video_relative_path,
     validate_video_path_template,
 )
-from scripts.dataset_semantic_explorer.video_serve import (
+from catalog.video_serve import (
     AssetTokenManager,
     InvalidAssetToken,
     RangeNotSatisfiable,
@@ -280,7 +280,7 @@ class DatasetVideoIndexTest(unittest.TestCase):
         self.assertTrue(realomin["truncated"])
 
     def test_hifi_shared_video_uses_a_separate_episode_locator_cap(self) -> None:
-        with patch("scripts.dataset_semantic_explorer.video_index._add_hifi_v3_mappings") as add_hifi:
+        with patch("catalog.video_index._add_hifi_v3_mappings") as add_hifi:
             index = build_video_index(
                 self.catalog,
                 pfs_root=self.pfs_root,
@@ -367,7 +367,7 @@ class DatasetVideoIndexTest(unittest.TestCase):
                 segmented_row[f"videos/{camera}/from_timestamp"] = float(segmented_row["episode_index"])
                 segmented_row[f"videos/{camera}/to_timestamp"] = float(segmented_row["episode_index"] + 1)
         with patch(
-            "scripts.dataset_semantic_explorer.video_index._iter_hifi_episode_rows",
+            "catalog.video_index._iter_hifi_episode_rows",
             side_effect=lambda *_args: iter(segmented_rows),
         ):
             index = build_video_index({"records": records}, pfs_root=self.pfs_root)
@@ -496,7 +496,7 @@ class TranscodeManagerTest(unittest.TestCase):
         }
         options.update(overrides)
         with patch(
-            "scripts.dataset_semantic_explorer.video_serve.subprocess.run",
+            "catalog.video_serve.subprocess.run",
             return_value=subprocess.CompletedProcess([], 0),
         ):
             return TranscodeManager(cache_root, **options)
@@ -511,7 +511,7 @@ class TranscodeManagerTest(unittest.TestCase):
     def test_atomic_cache_uses_source_fingerprint_and_validates_h264(self) -> None:
         manager = self.manager()
         with patch(
-            "scripts.dataset_semantic_explorer.video_serve.subprocess.run",
+            "catalog.video_serve.subprocess.run",
             side_effect=self.successful_process,
         ) as run:
             first = manager.materialize(self.source)
@@ -556,7 +556,7 @@ class TranscodeManagerTest(unittest.TestCase):
             except Exception as exc:
                 errors.append(exc)
 
-        with patch("scripts.dataset_semantic_explorer.video_serve.subprocess.run", side_effect=blocking_process):
+        with patch("catalog.video_serve.subprocess.run", side_effect=blocking_process):
             leader = threading.Thread(target=materialize_source)
             follower = threading.Thread(target=materialize_source)
             leader.start()
@@ -601,7 +601,7 @@ class TranscodeManagerTest(unittest.TestCase):
             except Exception as exc:
                 errors.append(exc)
 
-        with patch("scripts.dataset_semantic_explorer.video_serve.subprocess.run", side_effect=blocking_process):
+        with patch("catalog.video_serve.subprocess.run", side_effect=blocking_process):
             thread = threading.Thread(target=first_job)
             thread.start()
             self.assertTrue(started.wait(2))
@@ -622,7 +622,7 @@ class TranscodeManagerTest(unittest.TestCase):
                 return subprocess.CompletedProcess(args, 1, stdout=b"", stderr=b"sensitive path")
             return subprocess.CompletedProcess(args, 0, stdout="mpeg4\n", stderr="")
 
-        with patch("scripts.dataset_semantic_explorer.video_serve.subprocess.run", side_effect=failing_process):
+        with patch("catalog.video_serve.subprocess.run", side_effect=failing_process):
             with self.assertRaises(VideoServiceError) as caught:
                 manager.materialize(self.source)
         self.assertEqual(caught.exception.status, 422)
@@ -647,7 +647,7 @@ class TranscodeManagerTest(unittest.TestCase):
                 return subprocess.CompletedProcess(args, 0)
             return subprocess.CompletedProcess(args, 0, stdout="h264\n", stderr="")
 
-        with patch("scripts.dataset_semantic_explorer.video_serve.subprocess.run", side_effect=fill_limit):
+        with patch("catalog.video_serve.subprocess.run", side_effect=fill_limit):
             with self.assertRaises(VideoServiceError) as exceeded:
                 limited_manager.materialize(self.source)
         self.assertEqual(exceeded.exception.status, 507)
@@ -663,7 +663,7 @@ class TranscodeManagerTest(unittest.TestCase):
                 return subprocess.CompletedProcess(args, 0)
             return subprocess.CompletedProcess(args, 0, stdout="h264\n", stderr="")
 
-        with patch("scripts.dataset_semantic_explorer.video_serve.subprocess.run", side_effect=mutate_source):
+        with patch("catalog.video_serve.subprocess.run", side_effect=mutate_source):
             with self.assertRaises(VideoServiceError) as changed:
                 manager.materialize(self.source)
         self.assertEqual(changed.exception.status, 422)
@@ -674,7 +674,7 @@ class TranscodeManagerTest(unittest.TestCase):
         dataset_root = self.base / "dataset"
         dataset_root.mkdir()
         with patch(
-            "scripts.dataset_semantic_explorer.video_serve.subprocess.run",
+            "catalog.video_serve.subprocess.run",
             return_value=subprocess.CompletedProcess([], 0),
         ):
             with self.assertRaises(ValueError):
@@ -692,7 +692,7 @@ class TranscodeManagerTest(unittest.TestCase):
         except OSError as exc:
             self.skipTest(f"symlinks unavailable: {exc}")
         with patch(
-            "scripts.dataset_semantic_explorer.video_serve.subprocess.run",
+            "catalog.video_serve.subprocess.run",
             return_value=subprocess.CompletedProcess([], 0),
         ):
             with self.assertRaises(ValueError):
@@ -706,7 +706,7 @@ class TranscodeManagerTest(unittest.TestCase):
     def test_tool_validation_fails_before_cache_creation(self) -> None:
         cache = self.base / "invalid-tool-cache"
         with patch(
-            "scripts.dataset_semantic_explorer.video_serve.subprocess.run",
+            "catalog.video_serve.subprocess.run",
             return_value=subprocess.CompletedProcess([], 1),
         ):
             with self.assertRaises(ValueError):
@@ -719,7 +719,7 @@ class TranscodeManagerTest(unittest.TestCase):
         self.assertFalse(cache.exists())
 
         with patch(
-            "scripts.dataset_semantic_explorer.video_serve.subprocess.run",
+            "catalog.video_serve.subprocess.run",
             return_value=subprocess.CompletedProcess([], 0),
         ) as run:
             TranscodeManager(
@@ -909,7 +909,7 @@ class DatasetVideoServerTest(DatasetVideoIndexTest):
         self.service.ffprobe = "/fake/ffprobe"
 
         with patch(
-            "scripts.dataset_semantic_explorer.video_serve.subprocess.run",
+            "catalog.video_serve.subprocess.run",
             side_effect=[
                 subprocess.CompletedProcess([], 0, stdout="h264\n", stderr=""),
                 subprocess.CompletedProcess([], 0, stdout="hevc\n", stderr=""),
@@ -924,7 +924,7 @@ class DatasetVideoServerTest(DatasetVideoIndexTest):
     def test_non_h264_is_transcoded_once_then_streamed_with_ranges(self) -> None:
         cache = self.base / "transcode-cache"
         with patch(
-            "scripts.dataset_semantic_explorer.video_serve.subprocess.run",
+            "catalog.video_serve.subprocess.run",
             return_value=subprocess.CompletedProcess([], 0),
         ):
             service = VideoService(
@@ -954,7 +954,7 @@ class DatasetVideoServerTest(DatasetVideoIndexTest):
             codec = "h264" if resolved_cache in probed_path.parents else "mpeg4"
             return subprocess.CompletedProcess(args, 0, stdout=f"{codec}\n", stderr="")
 
-        with patch("scripts.dataset_semantic_explorer.video_serve.subprocess.run", side_effect=transcode_process):
+        with patch("catalog.video_serve.subprocess.run", side_effect=transcode_process):
             with self.request("/v1/records/robomindv2-pick/videos?limit=1", origin=self.allowed_origin) as response:
                 before = json.loads(response.read())["items"][0]
             self.assertEqual(before["playback_status"], "transcode_required")
@@ -1007,7 +1007,7 @@ class DatasetVideoServerTest(DatasetVideoIndexTest):
             "observation.images.front",
         )
         with patch(
-            "scripts.dataset_semantic_explorer.video_serve.subprocess.run",
+            "catalog.video_serve.subprocess.run",
             return_value=subprocess.CompletedProcess([], 0, stdout="mpeg4\n", stderr=""),
         ):
             item = service.list_videos("robomindv2-pick", offset=0, limit=1)["items"][0]

@@ -12,12 +12,12 @@ from functools import partial
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
-from data_web.build_vln_geometry import build_geometry
-from data_web.vln_catalog import connect
-from data_web.vln_ground_truth import geometry_for_record, normalize_gt, open_geometry, read_gt_entries
-from data_web.vln_serve import VLNRequestHandler
-from data_web.tests import test_vln_catalog as catalog_tests
-from data_web.tests.test_vln_catalog import episode
+from catalog.build_vln_geometry import build_geometry
+from catalog.vln_catalog import connect
+from catalog.vln_ground_truth import geometry_for_record, normalize_gt, open_geometry, read_gt_entries
+from catalog.vln_serve import VLNRequestHandler
+from catalog.tests import test_vln_catalog as catalog_tests
+from catalog.tests.test_vln_catalog import episode
 
 
 class VLNGeometryTests(unittest.TestCase):

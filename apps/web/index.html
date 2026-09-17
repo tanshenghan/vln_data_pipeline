@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="浏览、检查和筛选 R2R、RxR 视觉语言导航数据，查看场景俯视图、GT 轨迹和多语言指令。">
+  <title>VLN Atlas · 导航数据浏览器</title>
+  <link rel="icon" type="image/svg+xml" href="/atlas-assets/favicon.svg">
+  <link rel="stylesheet" href="/atlas-assets/styles.css">
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+  <script type="module" src="/atlas-assets/app.js"></script>
+</head>
+<body>
+  <header class="header">
+    <div class="brand"><img src="/atlas-assets/favicon.svg" width="38" height="38" alt=""><div><h1>VLN Atlas</h1><p>导航数据浏览器</p></div></div>
+    <nav class="platform-nav" aria-label="平台功能">
+      <a href="#atlas" data-page="atlas">数据浏览</a>
+      <a href="#gt" data-page="gt">GT 轨迹采集</a>
+      <a href="#seedance" data-page="seedance">Seedance 生成</a>
+      <a href="#runs" data-page="runs">任务与审核</a>
+      <a href="#overview" data-page="overview">工作站状态</a>
+    </nav>
+    <div class="header-end"><span id="catalog-date">正在连接数据目录…</span><button id="export" class="primary" disabled>导出筛选清单</button></div>
+  </header>
+  <div id="pipeline-notice" class="notice" role="status" hidden></div>
+  <div id="notice" class="notice" role="status" hidden></div>
+  <main id="atlas" class="page">
+    <section class="stats" aria-label="当前筛选统计">
+      <div><span>指令样本</span><strong id="stat-records">—</strong></div>
+      <div><span>参考路线</span><strong id="stat-routes">—</strong></div>
+      <div><span>Scan 场景</span><strong id="stat-scenes">—</strong></div>
+      <div><span>可生成 GT 视频</span><strong id="stat-media">—</strong></div>
+      <div><span>平均参考路径</span><strong id="stat-length">—</strong></div>
+    </section>
+    <details class="video-coverage" id="video-coverage">
+      <summary id="video-progress">R2R / RxR 视频整理进度</summary>
+      <div id="video-coverage-table"></div>
+    </details>
+    <form id="filters" class="filters" aria-label="样本筛选">
+      <label class="search"><span>搜索指令 / Episode / 路线 / Scan</span><input name="q" type="search" placeholder="例如 turn left、15、zsNo4HB9uLZ" autocomplete="off"></label>
+      <label><span>数据集</span><select name="dataset"><option value="">全部数据集</option></select></label>
+      <label><span>划分 Split</span><select name="split"><option value="">全部划分</option></select></label>
+      <label><span>语言</span><select name="language"><option value="">全部语言</option></select></label>
+      <label><span>角色</span><select name="role"><option value="">全部角色</option></select></label>
+      <details class="more-filters"><summary>更多筛选</summary><div class="extra-filters">
+        <label><span>数据版本</span><select name="source_id"><option value="">全部版本</option></select></label>
+        <label><span>Scan 场景</span><select name="scene"><option value="">全部场景</option></select></label>
+        <label><span>参考路径最短 / 米</span><input name="min_length" type="number" min="0" step="0.1" placeholder="不限"></label>
+        <label><span>参考路径最长 / 米</span><input name="max_length" type="number" min="0" step="0.1" placeholder="不限"></label>
+        <label><span>LeRobot GT 视频</span><select name="media"><option value="">全部</option><option value="yes">有对应观测</option><option value="no">暂无对应观测</option></select></label>
+        <label><span>标注检查</span><select name="quality"><option value="">全部</option><option value="complete">指令、路径、目标齐全</option><option value="issues">存在缺失字段</option></select></label>
+      </div></details>
+      <button id="reset" type="button">查看全部</button>
+    </form>
+    <div class="workspace">
+      <aside class="directory panel"><div class="panel-heading"><h2>数据目录</h2><span>数据集 / 划分 / 场景</span></div><nav id="directory" aria-label="数据目录"><p class="muted">正在加载…</p></nav><p class="directory-note">目录数字为全量计数。语言和角色可在上方筛选。</p></aside>
+      <section class="samples panel" aria-label="指令样本列表">
+        <div class="panel-heading"><h2>指令样本</h2><span id="result-count" aria-live="polite">正在加载…</span></div>
+        <div id="sample-list" class="sample-list" aria-busy="true"></div>
+        <div class="pagination"><button id="previous" disabled>上一页</button><span id="page-info">—</span><button id="next" disabled>下一页</button></div>
+      </section>
+      <section id="detail" class="detail panel" aria-label="样本详情"><div class="empty"><h2>选择一条导航指令</h2><p>查看场景俯视图、GT 轨迹和样本来源。</p></div></section>
+    </div>
+  </main>
+<main id="pipeline-main" hidden><div class="pipeline-heading"><h2 id="page-title"></h2><span id="service" class="muted">正在连接工作站…</span></div><section id="overview" class="page pipeline-page"><div class="stats" id="stats"></div><div class="columns"><article><h3>工作站状态</h3><div id="checks"></div><p class="muted" id="gpu"></p></article><article><h3>数据契约</h3><div class="contract-row"><b>GT · BetaNav LeRobot v3</b><p>RGB / 深度 / 位姿 · FM-30 · RVQ-10 · apos / opos</p></div><div class="contract-row"><b>Seedance · 原始生成产物</b><p>视频 / 估计轨迹 / 质量报告。缺失信息保留说明，估计轨迹不标为 GT。</p></div></article></div><article><div class="section-title"><h3>最近任务</h3><a href="#runs">查看全部 →</a></div><div id="recent"></div></article></section>
+<section id="data" class="page pipeline-page" hidden><div class="toolbar"><input id="search" placeholder="搜索指令、episode 或场景"><select id="filter-dataset"><option value="">全部数据集</option><option>R2R</option><option>RxR</option></select><select id="filter-split"><option value="">全部 split</option><option>train</option><option>val_seen</option><option>val_unseen</option><option>test</option></select><button id="search-button">搜索</button></div><div class="section-title"><p id="source-count" class="muted"></p><div><button id="source-gt">选中样本 → 采集 GT</button><button id="source-video">选中样本 → Seedance</button><button id="export-sources">导出本页清单</button></div></div><div id="source-table"></div><div class="pager"><button id="source-prev">上一页</button><span id="page-num"></span><button id="source-next">下一页</button></div></section>
+<section id="gt" class="page pipeline-page" hidden><div class="intro"><span class="label">GROUND TRUTH</span><h2>工作站 GT 轨迹采集</h2><p>点击开始后自动执行 Habitat 回放、四类监督、LeRobot 导出与校验。</p></div><form id="gt-form" class="form-card"><div class="form-grid"><label>任务名称<input name="name" placeholder="例如：R2R 首批采集"></label><label>数据集<select name="source_dataset"><option value="r2r">R2R</option><option value="rxr">RxR</option></select></label><label>数据划分<select name="split"><option>train</option><option>val_seen</option><option>val_unseen</option></select></label><label>角色<select name="role"><option value="guide">Guide</option><option value="follower">Follower（RxR）</option></select></label><label>语言<select name="language"><option value="all">全部语言</option><option>en-US</option><option>en-IN</option><option>hi-IN</option><option>te-IN</option></select></label><label>采集数量<input name="count" type="number" value="1" min="1" max="1000"></label></div><label>指定 episode ID（可选，逗号分隔）<input name="episode_ids" placeholder="留空则按来源目录选择"></label><label class="checkbox"><input type="checkbox" name="full_dataset">采集该划分的全部样本（分片执行，可续跑）</label><div class="form-note"><b>固定 GT 定义</b><p>470 × 280 · RGB + 深度 + 位姿 · FM-30 / RVQ-10 · apos / opos · 独立有效性标记</p><p id="gt-ready">正在检查采集环境…</p></div><button class="primary" type="submit" id="start-gt">开始采集 ↗</button><span class="muted">关闭页面后任务继续运行</span></form></section>
+<section id="seedance" class="page pipeline-page" hidden><div class="intro"><span class="label">GENERATIVE VIDEO</span><h2>Seedance 导航视频生成</h2><p>保留生成过程、质量报告与估计轨迹，缺少的深度、标定和监督信息仅作说明。</p></div><form id="seedance-form" class="form-card"><div class="form-grid"><label>任务名称<input name="name" placeholder="例如：走廊导航视频"></label><label>来源数据集<select name="source_dataset"><option value="r2r">R2R</option><option value="rxr">RxR</option></select></label><label>生成数量<input name="count" type="number" value="1" min="1" max="1000"></label><label>视频时长（秒）<input name="duration" type="number" value="15" min="4" max="15"></label></div><label>指定 episode ID（可选）<input name="episode_ids" placeholder="从源 episode 导入原始指令和参考路线"></label><label>任务说明（可选）<textarea name="instruction" rows="4" placeholder="描述期望生成的导航任务；已有源 episode 时以源指令为准"></textarea></label><div class="form-note"><b>产物来源明确保留</b><p>VGGT 轨迹为估计轨迹，非 GT。生成使用已配置的真实模型服务，费用按实际用量记录。</p></div><button class="primary" type="submit">开始生成 ▷</button></form></section>
+<section id="runs" class="page pipeline-page" hidden><div class="section-title"><p class="muted">实际执行记录 · 状态持久保存</p><button id="refresh-runs">刷新任务</button></div><div id="run-table"></div></section>
+<section id="run-detail" class="page pipeline-page" hidden><a href="#runs">← 返回任务列表</a><div id="run-content"></div></section>
+</main>
+  <footer>原始标注只读 · 视频来自 LeRobot GT，按 8 Hz 播放 · 评测轨迹来自数据集 GT · 俯视底图来自场景 NavMesh</footer>
+</body>
+</html>

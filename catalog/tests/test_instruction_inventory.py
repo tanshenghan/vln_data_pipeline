@@ -6,7 +6,7 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from scripts.dataset_semantic_explorer.instruction_inventory import (
+from catalog.instruction_inventory import (
     SOURCE_EGOVERSE,
     SOURCE_LEROBOT_JSONL,
     SOURCE_SSV2,

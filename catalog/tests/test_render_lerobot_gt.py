@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from data_web.visual.render_episode_gt import (
+from catalog.visual.render_episode_gt import (
     FrameRenderer,
     load_lerobot_episode,
     read_observation,

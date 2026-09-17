@@ -1,0 +1,84 @@
+{
+  "schema_version": "navgen-rxr-episode-v1",
+  "source_dataset": "RxR / VLN-CE guide trajectories",
+  "scene_id": "SN83YJsR3w2",
+  "scene_asset": "mp3d/SN83YJsR3w2/SN83YJsR3w2.glb",
+  "coordinate_note": "RxR reference_path uses Matterport x,y,z coordinates; the importer maps x,z to the local navigation ground plane x,y.",
+  "episodes": [
+    {
+      "episode_id": "13288",
+      "trajectory_id": "3363",
+      "instruction_id": "87980",
+      "language": "en-IN",
+      "instruction": "Turn around and walk straight towards the door mat and turn right, now you will find the glass door. Exit the door and take left. Enter through the passage where you will find the stairs on the left. Walk straight and then turn left near the portrait on the wall which is on the right side and enter the bedroom which is next to the portrait and towards the left and stand near the left door by facing the wash basin, you will arrive at your destination.",
+      "start_position": [10.688899993896484, 3.8914501667022705, -10.322199821472168],
+      "start_rotation": [-0.0, 0.657318413673526, -0.0, -0.7536129663465985],
+      "goal_position": [-3.60479998588562, 3.8914501667022705, -7.274350166320801],
+      "goal_radius_m": 3.0,
+      "reference_path": [
+        [10.688899993896484, 3.8914501667022705, -10.322199821472168],
+        [8.72445011138916, 3.8914501667022705, -10.374799728393555],
+        [6.898399829864502, 3.8914501667022705, -10.49940013885498],
+        [6.815879821777344, 3.8914501667022705, -11.90046215057373],
+        [5.336319923400879, 3.8914501667022705, -12.454099655151367],
+        [3.6394801139831543, 3.8914501667022705, -12.534199714660645],
+        [1.4247699975967407, 3.8914501667022705, -12.48900032043457],
+        [0.09443590044975281, 3.8914501667022705, -9.117380142211914],
+        [-1.003730058670044, 3.8914501667022705, -8.68673038482666],
+        [-3.60479998588562, 3.8914501667022705, -7.274350166320801]
+      ],
+      "target_id": "wash_basin_01",
+      "task_summary_zh": "沿走廊经过玻璃门、楼梯和画像，进入卧室后面向洗手盆停下。"
+    },
+    {
+      "episode_id": "13289",
+      "trajectory_id": "3363",
+      "instruction_id": "87981",
+      "language": "en-IN",
+      "instruction": "You are standing in a corridor of a building, facing towards the potted plants, turn back, walk straight till end of the wall, turn right, in-front of you there is a door, open the door and enter the room, turn left, walk straight, in-front of you there is a narrow path, walk straight in the narrow path until you reach the portrait on your right, turn left, to right you can see an open door, walk to the open door, turn right, enter the room, now you are in a bedroom, to right you have a bed, to left there is a another open door, walk to the open door, stand at the entrance of the door, that is your end point.",
+      "start_position": [10.688899993896484, 3.8914501667022705, -10.322199821472168],
+      "start_rotation": [-0.0, 0.657318413673526, -0.0, -0.7536129663465985],
+      "goal_position": [-3.60479998588562, 3.8914501667022705, -7.274350166320801],
+      "goal_radius_m": 3.0,
+      "reference_path": [
+        [10.688899993896484, 3.8914501667022705, -10.322199821472168],
+        [8.72445011138916, 3.8914501667022705, -10.374799728393555],
+        [6.898399829864502, 3.8914501667022705, -10.49940013885498],
+        [6.815879821777344, 3.8914501667022705, -11.90046215057373],
+        [5.336319923400879, 3.8914501667022705, -12.454099655151367],
+        [3.6394801139831543, 3.8914501667022705, -12.534199714660645],
+        [1.4247699975967407, 3.8914501667022705, -12.48900032043457],
+        [0.09443590044975281, 3.8914501667022705, -9.117380142211914],
+        [-1.003730058670044, 3.8914501667022705, -8.68673038482666],
+        [-3.60479998588562, 3.8914501667022705, -7.274350166320801]
+      ],
+      "target_id": "bedroom_door_02",
+      "task_summary_zh": "从走廊转身，经门、窄通道和画像进入卧室，在另一扇开放门入口停下。"
+    },
+    {
+      "episode_id": "13290",
+      "trajectory_id": "3363",
+      "instruction_id": "125447",
+      "language": "en-US",
+      "instruction": "Alright we are starting out what looks like an outside seating area. We are going to head towards that 3 paneled glass wall you'll see a door mat on the ground. We are going to head toward that area, straight forward onto that mat we are going to turn right go in that door. Once inside, they will be a hallway on your left with a portrait of a lady. Start walking down that hallway with the portrait of the lady on your right. Continue stepping forward on your left what looks like a bedroom there is a tiny table and a square mirror on the wall. We are walking towards that tiny table, over into the bedroom with an armoire on the left side and a bed on the right. We are going to continue towards the armoire towards the open door and you should be standing in that bedroom. you should be looking towards the bathroom. Through the bathroom you should see another bedroom, a bed and ottoman on the ground. You are where you should be.",
+      "start_position": [10.688899993896484, 3.8914501667022705, -10.322199821472168],
+      "start_rotation": [-0.0, 0.657318413673526, -0.0, -0.7536129663465985],
+      "goal_position": [-3.60479998588562, 3.8914501667022705, -7.274350166320801],
+      "goal_radius_m": 3.0,
+      "reference_path": [
+        [10.688899993896484, 3.8914501667022705, -10.322199821472168],
+        [8.72445011138916, 3.8914501667022705, -10.374799728393555],
+        [6.898399829864502, 3.8914501667022705, -10.49940013885498],
+        [6.815879821777344, 3.8914501667022705, -11.90046215057373],
+        [5.336319923400879, 3.8914501667022705, -12.454099655151367],
+        [3.6394801139831543, 3.8914501667022705, -12.534199714660645],
+        [1.4247699975967407, 3.8914501667022705, -12.48900032043457],
+        [0.09443590044975281, 3.8914501667022705, -9.117380142211914],
+        [-1.003730058670044, 3.8914501667022705, -8.68673038482666],
+        [-3.60479998588562, 3.8914501667022705, -7.274350166320801]
+      ],
+      "target_id": "bed_02",
+      "task_summary_zh": "从室外座位区经过三联玻璃墙、门和画像，穿过卧室与浴室视线，最终面向另一间卧室的床和脚凳。"
+    }
+  ]
+}

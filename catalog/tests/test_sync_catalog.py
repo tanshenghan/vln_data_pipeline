@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import unittest
 
-from scripts.dataset_semantic_explorer.sync_catalog import (
+from catalog.sync_catalog import (
     PublicationRejected,
     catalog_diff,
     catalog_digest,

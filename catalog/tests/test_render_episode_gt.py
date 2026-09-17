@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from PIL import Image, ImageFont
 
-from data_web.visual.render_episode_gt import (
+from catalog.visual.render_episode_gt import (
     FrameRenderer,
     clip_segment,
     future_ground_path,

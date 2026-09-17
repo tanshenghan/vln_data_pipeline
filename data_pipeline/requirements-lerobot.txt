@@ -1,5 +1,6 @@
 # Dataset-only dependencies. Install lerobot==0.4.4 separately with --no-deps.
 # Reuse compatible torch 2.10 / torchvision 0.25 from the inference venv.
+numpy==1.26.4
 datasets==4.1.1
 pyarrow==25.0.1
 pandas==3.0.5

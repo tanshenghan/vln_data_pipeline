@@ -13,8 +13,8 @@ from functools import partial
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
-from data_web.vln_catalog import build_database, connect, normalize, overview, read_rows, where_clause
-from data_web.vln_serve import VLNRequestHandler
+from catalog.vln_catalog import build_database, connect, normalize, overview, read_rows, where_clause
+from catalog.vln_serve import VLNRequestHandler
 
 
 def episode(identifier=1, **updates):

@@ -23,6 +23,22 @@ from data_pipeline.pointing import (  # noqa: E402
 )
 
 
+def assert_label_equivalent(actual, expected):
+    """Keep discrete labels exact; tolerate only cross-BLAS floating roundoff."""
+    if isinstance(expected, dict):
+        assert isinstance(actual, dict) and actual.keys() == expected.keys()
+        for key in expected:
+            assert_label_equivalent(actual[key], expected[key])
+    elif isinstance(expected, list):
+        assert isinstance(actual, list) and len(actual) == len(expected)
+        for left, right in zip(actual, expected):
+            assert_label_equivalent(left, right)
+    elif isinstance(expected, float):
+        np.testing.assert_allclose(actual, expected, rtol=0, atol=1e-9, equal_nan=False)
+    else:
+        assert actual == expected
+
+
 def validate(root):
     manifest = json.loads((root/'manifest.json').read_text())
     if manifest.get('format') == 'beta_nav_pointing_v1':
@@ -73,7 +89,7 @@ def validate(root):
                     apos = attach_pixel_grid(apos, w, h)
                     for name, expected_grid in pixel_grid_arrays([apos], 'apos').items():
                         np.testing.assert_array_equal(data[name][i], expected_grid[0])
-                assert samples[i]['apos'] == apos
+                assert_label_equivalent(samples[i]['apos'], apos)
                 assert bool(data['apos_valid_mask'][i]) == apos['loss_valid']
                 assert int(data['apos_token_id'][i]) == apos['token_id']
                 assert apos['token_id'] == config.unknown_token_id or 1 <= apos['token_id'] <= 1296
@@ -89,7 +105,7 @@ def validate(root):
                     h, w = depth['depth_m'].shape
                     opos = attach_pixel_grid(terminal_ground_point(data['world_from_body'][:, :3, 3], cam, K,
                                              depth['depth_m'], depth['valid'], config, frame_index=i), w, h)
-                    assert samples[i]['opos'] == opos
+                    assert_label_equivalent(samples[i]['opos'], opos)
                     assert bool(data['opos_valid_mask'][i]) == opos['loss_valid']
                     assert int(data['opos_token_id'][i]) == opos['token_id']
                     assert samples[i]['opos_tokens'] == pointing_token('opos', opos)
