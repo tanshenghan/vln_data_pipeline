@@ -2,7 +2,7 @@
 
 面向视觉语言导航（Vision-and-Language Navigation，VLN）的数据生产与管理平台，集成 GT 轨迹采集、Seedance 视频生成和 VLN Atlas 数据浏览，为数据选择、任务执行、质量检查、审核发布及产物下载提供统一入口。
 
-GT 采集以 `Beta_Nav/data_pipeline` 的数据定义为基准，在工作站运行 Habitat 回放、监督标注与 LeRobot 导出。Seedance 管线接入视频生成、质量过滤及现有 VGGT 轨迹估计，保留生成条件、来源关系和原始产物。两条管线共用任务管理与数据目录。
+GT 采集以 `Beta_Nav/data_pipeline` 的数据定义为基准，在工作站运行 Habitat / Isaac 采集、监督标注与 LeRobot 导出。Seedance 管线接入视频生成、质量过滤及现有 VGGT 轨迹估计，保留生成条件、来源关系和原始产物。两条管线共用任务管理与数据目录。
 
 ## 功能概览
 
@@ -10,6 +10,7 @@ GT 采集以 `Beta_Nav/data_pipeline` 的数据定义为基准，在工作站运
 | --- | --- |
 | 数据浏览 | 按数据集、版本、划分、场景、语言和来源筛选；查看指令、视频、GT 轨迹及派生产物 |
 | GT 采集 | 支持 R2R、RxR 公开专家数据；自动完成 Habitat 回放、RGB / 深度 / 位姿采集、四类监督标注、LeRobot 导出和独立校验 |
+| Kujiale 场景 | VLNVerse 全量 USD 场景同步、校验和浏览；公开路线回放、无公开路线的 LightNav 推理采集、VLM 轨迹审核 |
 | Seedance 生成 | 从源样本或自由任务创建生成任务；支持 Prompt 预览与快照复用、视频生成、质量检查、估计轨迹及用量展示 |
 | 任务管理 | 持久化任务配置、阶段状态和执行日志；支持请求防重、分片暂停、断点续跑及失败重试 |
 | 审核发布 | 保存审核记录，发布带文件哈希的数据版本，导出筛选清单和下载原始产物 |
@@ -43,13 +44,16 @@ flowchart LR
 | 业务存储 | PostgreSQL，保存任务、来源关联、产物、审核和发布记录 |
 | 调度与执行 | Celery + Redis，结合持久化阶段记录与独立子进程 |
 | 查询索引 | 复用 Data 的 SQLite 索引，并接入生产产物目录 |
-| 计算环境 | Habitat、LeRobot、NavGen / VGGT 使用独立 Python 环境 |
+| 计算环境 | Habitat、Isaac、LeRobot、NavGen / VGGT 使用独立 Python 环境 |
 | 服务托管 | 工作站 systemd 用户服务 |
 
-两条生产链路分别为：
+生产链路如下：
 
-- **GT：** 源 episode → Habitat 回放 → 观测与监督 → 采集校验 → LeRobot 导出 → 契约校验 → 检查媒体与目录登记。
+- **R2R / RxR GT：** 源 episode → Habitat 回放 → 观测与监督 → 采集校验 → LeRobot 导出 → 契约校验 → 检查媒体与目录登记。
+- **VLNVerse：** 源指令 → 有公开路线则回放，否则由 LightNav 闭环推理 → 原生 USD 观测 → VLM 审核 → 通过且明确 STOP 的轨迹标注与导出，其余保留为候选。
 - **Seedance：** 源样本或任务规划 → Prompt 编译 → 视频生成 → 质量过滤 → VGGT 估计轨迹 → 原始产物打包与目录登记。
+
+VLNVerse 的场景资源、公开参考路线范围及独立采样定义见 [Kujiale 接入说明](data_pipeline/docs/VLNVERSE.md)。网站分别显示资源同步状态和采集环境就绪状态。真实网站任务与质量结果见 [VLNVerse 验收记录](docs/VALIDATION_20260918_VLNVERSE.md)。
 
 详细模块边界与数据流见[总体架构](docs/ARCHITECTURE_PLAN.md)。
 

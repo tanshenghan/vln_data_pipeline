@@ -125,6 +125,7 @@ def common_env():
     return {"HABITAT_PYTHON": str(settings.habitat_python), "LEROBOT_PYTHON": str(settings.lerobot_python),
             "BETA_GPU_ID": str(settings.gpu_id), "BETA_SCENES_DIR": str(settings.resource_root / "scene_datasets"),
             "BETA_RVQ_BUNDLE": str(settings.resource_root / "action_tokenizer"),
+            "BETA_VLNVERSE_HDR": str(settings.resource_root / "render_assets/limpopo_golf_course_4k.hdr"),
             "PYTHONPATH": str(ROOT / "src") + ":" + str(ROOT), "PYTHONUNBUFFERED": "1",
             "OMP_NUM_THREADS": "2", "OPENBLAS_NUM_THREADS": "2", "HF_HUB_OFFLINE": "1"}
 
@@ -184,16 +185,34 @@ def collect_gt(run_id, cfg):
         atomic_json(ids, cfg["episode_ids"])
         raw = directory / "capture"
         archive_failed_output(run_id, "capture", raw)
-        execute(run_id, "capture", ["bash", "data_pipeline/run.sh", raw, "-1", "--dataset", cfg["dataset"],
-            "--split", cfg["split"], "--role", cfg["role"], "--languages", *cfg["languages"],
-            "--episode-ids-file", ids], env)
+        if cfg["dataset"] == "vlnverse":
+            roots = [arg for root in settings.vlnverse_scene_roots if root for arg in ["--scene-root", root]]
+            execute(run_id, "capture", [sys.executable, "-m", "workers.vlnverse_capture", settings.isaac_python,
+                "--config", directory / "config.json", "--output", raw,
+                "--rvq-bundle", env["BETA_RVQ_BUNDLE"], *roots],
+                {**env, "OMNI_KIT_ACCEPT_EULA": "YES"})
+            execute(run_id, "vlm_review", [sys.executable, "data_pipeline/review_vlnverse.py", raw,
+                "--env-file", settings.navgen_env], env)
+            register_vlnverse_candidates(run_id, raw)
+            review = json.loads((raw / "vlm_review_summary.json").read_text())
+            if not review["accepted"]:
+                register(run_id, "capture", raw, {"candidate":True,"ground_truth":False})
+                return
+            execute(run_id, "annotate", [settings.lerobot_python, "data_pipeline/collect_vlnverse.py",
+                "--output", raw, "--annotate"], env)
+        else:
+            execute(run_id, "capture", ["bash", "data_pipeline/run.sh", raw, "-1", "--dataset", cfg["dataset"],
+                "--split", cfg["split"], "--role", cfg["role"], "--languages", *cfg["languages"],
+                "--episode-ids-file", ids], env)
         execute(run_id, "validate_capture", [settings.lerobot_python, "data_pipeline/validate_r2r.py", raw], env)
         archive_failed_output(run_id, "export", output)
         execute(run_id, "export", [settings.lerobot_python, "data_pipeline/export_lerobot.py", raw,
             "--output-dir", output, "--repo-id", f"beta-nav/{cfg['dataset']}-{run_id[:8]}"], env)
         # Prove the final loader does not depend on original scratch paths, while retaining an audit copy.
-        if raw.exists():
+        if raw.exists() and cfg["dataset"] != "vlnverse":
             raw.rename(directory / "capture_archive")
+        elif cfg["dataset"] == "vlnverse":
+            register(run_id,"capture",raw,{"ground_truth":False,"contains_candidates":True})
     execute(run_id, "validate_lerobot", [settings.lerobot_python, "-m", "contracts.check", output,
         "--report", output / "meta/platform_validation.json"], env)
     metadata = json.loads((output / "meta/beta_nav.json").read_text())
@@ -211,6 +230,32 @@ def collect_gt(run_id, cfg):
     sync_gt_catalog()
     from .sample_catalog import register_samples
     register_samples(run_id)
+
+
+def register_vlnverse_candidates(run_id, raw):
+    """Make reviewed candidates inspectable even when none qualifies for export."""
+    import shutil
+    audit = run_dir(run_id) / "trajectory_review"
+    audit.mkdir(exist_ok=True)
+    summary = json.loads((raw / "vlm_review_summary.json").read_text())
+    shutil.copyfile(raw / "vlm_review_summary.json", audit / "summary.json")
+    register(run_id, "report", audit / "summary.json", {"semantic_review": True})
+    for report in summary["episodes"]:
+        eid=report["episode_id"]
+        folder=raw/("episodes" if report["accepted"] else "candidates")/eid
+        target=audit/eid;target.mkdir(exist_ok=True)
+        for name in ("episode.json","vlm_review.json","vlm_request.json","vlm_response.json","model_responses.jsonl"):
+            if (folder/name).exists():
+                shutil.copyfile(folder/name,target/name)
+                register(run_id,"report",target/name,{"episode_id":eid})
+        movie=target/"observations.mp4"
+        execute(run_id,"observations_"+eid,["ffmpeg","-nostdin","-y","-loglevel","error","-framerate","8",
+            "-i",folder/"rgb/%06d.png","-c:v","libx264","-pix_fmt","yuv420p",movie])
+        register(run_id,"video",movie,{"episode_id":eid,"ground_truth":report["accepted"],
+            "trajectory_source":report["trajectory_source"],"semantic_decision":report["decision"],"candidate":not report["accepted"]})
+    register(run_id,"capture",raw,{"ground_truth":False,"contains_candidates":bool(summary["candidates"])})
+    from .sample_catalog import register_vlnverse_candidates as catalog_candidates
+    catalog_candidates(run_id)
 
 
 def generate_seedance(run_id, cfg):

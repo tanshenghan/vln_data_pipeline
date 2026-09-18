@@ -32,21 +32,35 @@ def inventory(episode_path, gt_path, episode_stamp, gt_stamp, dataset):
 
 
 def estimate_gt(cfg):
-    paths = source_paths(settings.dataset_root(cfg["dataset"]), cfg["dataset"], cfg["split"], cfg["role"])
-    records = inventory(*paths, *((p.stat().st_mtime_ns, p.stat().st_size) for p in paths), cfg["dataset"])
-    wanted = None if cfg["full_dataset"] else set(cfg["episode_ids"])
-    selected = {eid: row for eid, row in records.items()
-                if (wanted is None or eid in wanted) and
-                (cfg["languages"] == ["all"] or row["language"] in cfg["languages"])}
-    if not selected or (wanted is not None and wanted != set(selected)):
-        raise ValueError("容量预检未找到完整的所选源数据")
-    if any(row["frames"] is None for row in selected.values()):
-        raise ValueError("所选 episode 缺少专家 GT")
-    scenes = {row["scene"] for row in selected.values()}
-    for name in scenes:
-        scene = settings.resource_root / "scene_datasets/mp3d" / name / (name + ".glb")
-        if not scene.is_file() or not scene.with_suffix(".navmesh").is_file():
-            raise ValueError(f"场景尚未就绪：{name}")
+    if cfg["dataset"] == "vlnverse":
+        from catalog.vlnverse_scenes import usd_path
+        from data_pipeline.vlnverse_source import replay_plan
+        selected = {}
+        for record in cfg.get("source_records", []):
+            scene = usd_path(settings.vlnverse_scene_roots, record["scene"])
+            # Platform downloads become available only after every dependency is verified.
+            if not (scene.parent / "platform_asset_manifest.json").is_file():
+                raise ValueError("场景资源下载校验尚未完成：" + record["scene"])
+            selected[record["episode_id"]] = {"scene": record["scene"], "frames": (len(replay_plan(record)["poses_source"]) if record["has_reference_gt"] else cfg.get("lightnav_max_steps", 500)+1)}
+        if not selected:
+            raise ValueError("缺少已冻结的 VLNVerse 参考轨迹")
+        scenes = {r["scene"] for r in selected.values()}
+    else:
+        paths = source_paths(settings.dataset_root(cfg["dataset"]), cfg["dataset"], cfg["split"], cfg["role"])
+        records = inventory(*paths, *((p.stat().st_mtime_ns, p.stat().st_size) for p in paths), cfg["dataset"])
+        wanted = None if cfg["full_dataset"] else set(cfg["episode_ids"])
+        selected = {eid: row for eid, row in records.items()
+                    if (wanted is None or eid in wanted) and
+                    (cfg["languages"] == ["all"] or row["language"] in cfg["languages"])}
+        if not selected or (wanted is not None and wanted != set(selected)):
+            raise ValueError("容量预检未找到完整的所选源数据")
+        if any(row["frames"] is None for row in selected.values()):
+            raise ValueError("所选 episode 缺少专家 GT")
+        scenes = {row["scene"] for row in selected.values()}
+        for name in scenes:
+            scene = settings.resource_root / "scene_datasets/mp3d" / name / (name + ".glb")
+            if not scene.is_file() or not scene.with_suffix(".navmesh").is_file():
+                raise ValueError(f"场景尚未就绪：{name}")
     settings.runs_root.mkdir(parents=True, exist_ok=True)
     try:
         with tempfile.TemporaryFile(dir=settings.runs_root) as probe:

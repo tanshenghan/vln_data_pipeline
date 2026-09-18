@@ -20,6 +20,7 @@ from .preflight import health, validate_gt
 from workers.tasks import execute_run, run_dir
 from workers.command_runner import atomic_json
 from contracts.check import check_metadata
+from catalog import vlnverse_scenes, vlnverse_data
 
 
 @asynccontextmanager
@@ -68,6 +69,54 @@ def sources(request: Request, limit: int = 30, offset: int = 0):
         return browse(dict(request.query_params), min(100, max(1, limit)), max(0, offset))
     except ValueError as exc:
         raise HTTPException(422, str(exc))
+
+
+@app.get("/api/scenes")
+def scenes():
+    result = vlnverse_scenes.discover(settings.vlnverse_scene_roots)
+    sync_path = settings.runtime_root / "vlnverse_sync/status.json"
+    sync = json.loads(sync_path.read_text()) if sync_path.exists() else None
+    if sync:
+        local = {r["id"]: r for r in result["items"]}
+        for scene_id, progress in sync.get("scenes", {}).items():
+            item = local.setdefault(scene_id, {"id": scene_id, "dataset": "VLNVerse", "family": "Kujiale",
+                "format": "USD", "room_count": 0, "room_types": [], "media": {}, "local": False})
+            item["sync_status"] = progress["status"]
+        for item in result["items"]:
+            item["local"] = True
+        result["items"] = list(local.values())
+        result["total"] = len(result["items"])
+        result["sync"] = {k: v for k, v in sync.items() if k not in {"scenes", "errors", "root"}}
+        result["sync"]["error_files"] = len(sync.get("errors", {}))
+    records = vlnverse_data.records(settings.dataset_root("vlnverse"))
+    counts = {}
+    for row in records:
+        item = counts.setdefault(row["scene"], {"instructions": 0, "public_gt": 0})
+        item["instructions"] += 1
+        item["public_gt"] += int(row["has_reference_gt"])
+    for item in result["items"]:
+        item.update(counts.get(item["id"], {"instructions": 0, "public_gt": 0}))
+    result["items"].sort(key=lambda r: (r.get("local") is False, not r["public_gt"], r["id"]))
+    return result
+
+
+@app.get("/api/scenes/{scene_id}")
+def scene_detail(scene_id: str):
+    try:
+        result = vlnverse_scenes.detail(settings.vlnverse_scene_roots, scene_id)
+        scene = vlnverse_scenes.usd_path(settings.vlnverse_scene_roots, scene_id)
+        result["capture_assets_ready"] = (scene.parent / "platform_asset_manifest.json").is_file()
+        return result
+    except (ValueError, OSError) as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@app.get("/api/scenes/{scene_id}/media/{kind}")
+def scene_media(scene_id: str, kind: str):
+    try:
+        return FileResponse(vlnverse_scenes.media_path(settings.vlnverse_scene_roots, scene_id, kind))
+    except (ValueError, OSError) as exc:
+        raise HTTPException(404, str(exc)) from exc
 
 
 @app.get("/api/sources/{record_id}")
@@ -168,6 +217,9 @@ def run_detail(run_id: str):
         result["reviews"] = [serialize(r) for r in db.scalars(select(Review).where(Review.subject_id == run_id).order_by(Review.created_at.desc()))]
         result["release"] = next((serialize(r) for r in db.scalars(select(Release).where(Release.run_id == run_id))), None)
     directory = run_dir(run_id)
+    review = directory / "trajectory_review/summary.json"
+    if review.exists():
+        result["trajectory_review"] = json.loads(review.read_text())
     if row.kind == "seedance":
         generation = directory / "generation"
         usage = generation / "usage_summary.json"

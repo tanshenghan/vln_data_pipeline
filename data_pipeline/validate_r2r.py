@@ -123,7 +123,10 @@ def validate(root):
             stationary_turn = i+1<n and np.linalg.norm(delta[:2]) < 1e-5 and abs(delta[2]) > 1e-5
             if stationary_turn:
                 np.testing.assert_allclose(delta[:2],0,atol=1e-5)
-                np.testing.assert_allclose(abs(delta[2]),np.deg2rad(15),atol=1e-5)
+                if manifest.get('sampling_mode', '').startswith('vlnverse_'):
+                    assert abs(delta[2]) <= np.deg2rad(30 if episode.get('trajectory_source') == 'lightnav_inference' else 15) + 1e-5
+                else:
+                    np.testing.assert_allclose(abs(delta[2]),np.deg2rad(15),atol=1e-5)
                 if action in (2,3):
                     expected_yaw = np.deg2rad(15 if action==2 else -15)
                     np.testing.assert_allclose(delta[2],expected_yaw,atol=1e-5)

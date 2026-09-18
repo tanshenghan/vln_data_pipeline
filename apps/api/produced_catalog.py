@@ -7,10 +7,11 @@ from .db import DataSample, Artifact, Run, Release, Review, session, serialize
 def public_sample(row, artifacts=None):
     result=serialize(row)
     result.update(row.details)
+    gt = row.origin=='gt' and not row.details.get('candidate',False)
     result.update(id=row.id, source_id=row.run_id, version=row.run_id,
                   origin=row.origin, source_record_id=row.source_record_id,
-                  ground_truth=row.origin=='gt', has_gt=row.origin=='gt',
-                  has_gt_video=row.origin=='gt' and bool(row.details.get('video_artifact_id')),
+                  ground_truth=gt, has_gt=gt,
+                  has_gt_video=gt and bool(row.details.get('video_artifact_id')),
                   has_media=bool(row.details.get('video_artifact_id')),
                   path_length=row.details.get('path_length'))
     if artifacts is not None:

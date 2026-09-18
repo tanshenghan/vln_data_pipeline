@@ -2,6 +2,8 @@ import json
 import shutil
 import subprocess
 import time
+import socket
+from urllib.parse import urlparse
 from dotenv import dotenv_values
 from .settings import settings
 from .capacity import estimate_gt
@@ -47,7 +49,18 @@ def health():
     checks["runtime_verified"] = bool(verified.get("habitat") and verified.get("lerobot"))
     checks.update(services())
     seedance_ready = bool(dotenv_values(settings.navgen_env).get("ARK_API_KEY")) if settings.navgen_env.exists() else False
-    return {"ready": all(checks.values()), "checks": checks, "seedance_ready": seedance_ready, "gpu": gpu, "free_gb": round(free, 1),
+    isaac_report = settings.runtime_root / "vlnverse_environment_validation.json"
+    isaac_verified = json.loads(isaac_report.read_text()) if isaac_report.exists() else {}
+    endpoint=urlparse(settings.lightnav_endpoint)
+    try:
+        with socket.create_connection((endpoint.hostname,endpoint.port or 80),timeout=1):lightnav_ready=True
+    except OSError:lightnav_ready=False
+    lightnav_report = settings.runtime_root / "vlnverse_lightnav_validation.json"
+    lightnav_verified = json.loads(lightnav_report.read_text()) if lightnav_report.exists() else {}
+    lightnav_ready = lightnav_ready and bool(lightnav_verified.get("complete"))
+    return {"lightnav_ready": lightnav_ready, "lightnav_validation": lightnav_verified,
+            "vlnverse_ready": bool(isaac_verified.get("complete") and settings.isaac_python.exists() and seedance_ready),
+            "vlnverse_validation": isaac_verified, "ready": all(checks.values()), "checks": checks, "seedance_ready": seedance_ready, "gpu": gpu, "free_gb": round(free, 1),
             "gpu_id": settings.gpu_id, "workstation": True, "validation": verified}
 
 
@@ -55,6 +68,10 @@ def validate_gt(cfg):
     h = health()
     if not h["ready"]:
         raise ValueError("工作站采集环境未就绪：" + "、".join(k for k,v in h["checks"].items() if not v))
+    if cfg["dataset"] == "vlnverse" and not h.get("vlnverse_ready"):
+        raise ValueError("VLNVerse 原生 USD 渲染环境尚未通过工作站实测")
+    if cfg["dataset"] == "vlnverse" and any(not r["has_reference_gt"] for r in cfg.get("source_records",[])) and not h["lightnav_ready"]:
+        raise ValueError("无公开路线需要 LightNav 服务，目前服务不可达")
     try:
         estimate = estimate_gt(cfg)
     except FileNotFoundError as exc:

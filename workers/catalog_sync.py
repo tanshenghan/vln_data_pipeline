@@ -23,6 +23,9 @@ def sync_gt_catalog():
                 if not report.exists() or not json.loads(report.read_text()).get('complete'):
                     continue
                 cfg = run.config
+                if cfg["dataset"] == "vlnverse":
+                    # VLNVerse uses the unified produced catalog; MP3D snapshot stays intact.
+                    continue
                 records = cfg.get('source_records', [])
                 source_id = records[0]['source_id'] if records else {'r2r':'r2r-vlnce-v1-3','rxr':'rxr-vlnce-v0'}[cfg['dataset']]
                 sources.append({'root':str(dataset),'source_id':source_id,

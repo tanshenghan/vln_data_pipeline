@@ -42,7 +42,7 @@ def main():
             page.goto(args.url+'/',wait_until='networkidle')
             page.wait_for_selector('#sample-list .sample')
             assert page.locator('#atlas').is_visible()
-            assert page.locator('.workspace>.panel').count()==3
+            assert page.locator('#atlas .workspace>.panel').count()==3
             evidence['source_records']=int(page.locator('#stat-records').inner_text().replace(',',''))
             assert evidence['source_records']>0
             page.screenshot(path=str(args.output/'atlas.png'),full_page=True)

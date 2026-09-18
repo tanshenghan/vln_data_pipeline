@@ -135,7 +135,7 @@ def export_dataset(source, output, repo_id="beta-nav/r2r", episode_ids=None):
     import lerobot.datasets.lerobot_dataset as official
 
     dataset = official.LeRobotDataset.create(repo_id=repo_id, fps=1, features=features, root=output,
-        robot_type="lightnav_habitat", use_videos=False, image_writer_threads=2, video_backend="pyav")
+        robot_type=raw_manifest.get("robot_type", "lightnav_habitat"), use_videos=False, image_writer_threads=2, video_backend="pyav")
     records = []
     try:
         with masked_writer_statistics(official):
@@ -156,6 +156,8 @@ def export_dataset(source, output, repo_id="beta-nav/r2r", episode_ids=None):
                     source_episode=str(folder), observation_hashes=observations,
                     array_hashes={key: array_digest(episode["arrays"][source_key]) for source_key, key in ARRAY_FEATURES.items()},
                     source_hashes={name: sha256(folder / name) for name in ("episode.json", "samples.jsonl", "targets.npz")})
+                for key in ("trajectory_source", "semantic_quality", "vlm_review", "terminal_command", "goal_distance_m", "collision_policy"):
+                    if key in meta:record[key]=meta[key]
                 if "source_metadata" in meta:
                     record["source_metadata"] = meta["source_metadata"]
                 records.append(record)
@@ -169,12 +171,16 @@ def export_dataset(source, output, repo_id="beta-nav/r2r", episode_ids=None):
     for i, folder in enumerate(folders):
         dest = provenance / "episodes" / f"{i:06d}"
         dest.mkdir(parents=True)
-        for name in ("episode.json", "samples.jsonl"):
+        for name in ("episode.json", "samples.jsonl", "vlm_review.json", "vlm_request.json", "vlm_response.json", "model_responses.jsonl"):
+            if not (folder / name).exists():continue
             shutil.copyfile(folder / name, dest / name)
     code_files = ("export_lerobot.py", "lerobot_stats.py", "validate_lerobot.py", "pointing.py", "geometry.py",
                   "collect_r2r.py", "vlnce_source.py", "run_lerobot.sh", "setup_lerobot.sh", "requirements-lerobot.txt")
+    if raw_manifest.get("robot_type", "").startswith("vlnverse_isaac_"):
+        code_files += ("collect_vlnverse.py", "vlnverse_source.py", "vlnverse_lightnav.py", "review_vlnverse.py")
     for name in code_files:
-        shutil.copyfile(REPO / "data_pipeline" / name, provenance / name)
+        snapshot=source / "source_code" / name
+        shutil.copyfile(snapshot if snapshot.is_file() else REPO / "data_pipeline" / name, provenance / name)
     assets = output / "assets/action_tokenizer"
     assets.mkdir(parents=True)
     for name in raw_manifest["rvq_sha256"]:

@@ -98,3 +98,13 @@ GT 页面可先“检查采集范围与容量”，点击开始时后端仍自�
 [契约检查入口](../contracts/README.md) 复用官方独立校验。发布拒绝缺失产物或缺失 GT 校验报告的任务。历史上游参数见 [分片控制参数](../data_pipeline/docs/FULL_R2R_TRAIN.md#平台控制与划分2026-09-17)。
 
 `make test` 分别在平台与 LeRobot 环境运行测试，并检查前端。`test_rollout_lightnav.py` 属于未迁入的模型推理，不计入采集管线测试；不会安装整套训练/推理栈以运行它。只读网页验收仍使用上面的 browser_smoke 命令。
+
+## VLNVerse / Kujiale
+
+完整场景同步、独立 Isaac 环境和采集参数见 [VLNVerse 配置](../data_pipeline/docs/VLNVERSE.md)。
+`VLN_VLNVERSE_MANAGED_SCENE_ROOT` 指定经过校验的全量场景目录；`VLN_VLNVERSE_SCENE_ROOT` 可指定已有共享场景的只读目录；`VLN_ISAAC_PYTHON` 指定独立渲染解释器。
+
+VLNVerse 自动采集采用公开路线优先、LightNav 回退、VLM 审核策略。`VLN_LIGHTNAV_ENDPOINT` 指向已有推理服务，
+`VLN_LIGHTNAV_MODEL_PROVENANCE` 记录服务模型身份。API 的 `lightnav_max_steps` 默认 500、范围 1–1000；
+VLM 复用 `VLN_NAVGEN_ENV` 内的 `ARK_API_KEY`、`ARK_BASE_URL`、`VLM_MODEL`，凭据不写入任务配置或 Git。
+`VLN_LIGHTNAV_MODEL_MANIFEST` 可指定模型与动作码本 SHA256 清单，平台将其内容冻结到任务配置，优先于文字版本说明。

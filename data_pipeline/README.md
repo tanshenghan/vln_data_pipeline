@@ -18,6 +18,8 @@ RxR 使用 [run_rxr.sh](run_rxr.sh) 接入同一套回放、四类 GT 和 Parque
 清理时的冻结代码包和逐文件哈希位于 [releases/](releases/README.md)，
 这些历史快照不包含后续 pointing_zero 修改。
 
+VLNVerse / Kujiale 使用独立原生 USD 采集入口：有公开路线则回放，没有则使用 LightNav 闭环推理，并由 VLM 审核。通过且有明确终止命令的轨迹复用同一 GT 契约，其他结果保留为候选。全量场景同步、参考轨迹边界、坐标转换和采样定义见 [VLNVERSE.md](docs/VLNVERSE.md)。
+
 ## 核心代码
 
 | 顺序 | 文件 | 人工检查重点 |

@@ -61,7 +61,7 @@ function populateFacets(facets) {
   for (const [field, choices] of Object.entries(facets)) {
     const select = $(`#filters select[name="${field}"]`);
     if (!select) continue;
-    const current = select.value;
+    const current = state.params[field] ?? select.value;
     const first = select.options[0].textContent;
     select.replaceChildren(new Option(first, ""));
     for (const choice of choices) {
@@ -148,7 +148,7 @@ function renderList() {
     button.setAttribute("aria-current", String(record.id === state.selected));
     const top = element("div", "sample-top"); const labels = element("div", "chips");
     labels.append(chip(record.dataset, record.dataset.toLowerCase()), chip(record.language));
-    if(record.origin)labels.append(chip(record.origin==='seedance'?'生成 · 非 GT':'采集 GT',record.origin==='seedance'?'review':'keep'));
+    if(record.origin)labels.append(chip(record.candidate?'候选 · 未通过':record.origin==='seedance'?'生成 · 非 GT':'采集 GT',record.candidate||record.origin==='seedance'?'review':'keep'));
     else labels.append(chip(record.has_gt ? "GT 已接入" : record.split === "test" ? "GT 未公开" : "GT 未接入", record.has_gt ? "keep" : ""));
     top.append(element("span", "sample-id", record.origin==='seedance'?`生成样本 ${record.id.slice(-8)}`:`Episode ${record.episode_id}`), labels);
     const instruction = element("p", "sample-instruction", record.instruction || "该样本没有公开指令"); instruction.lang = record.language; instruction.dir = "auto";
@@ -194,7 +194,7 @@ function renderDetail(record) {
 function renderProduced(record){
   const detail=$('#detail');detail.replaceChildren();
   const header=element('div','detail-header'),chips=element('div','chips');
-  chips.append(chip(record.origin==='gt'?'GT 采集':'Seedance · 非 GT',record.origin==='gt'?'keep':'review'),chip(record.dataset),chip(record.split),chip(record.language));
+  chips.append(chip(record.candidate?'导航候选 · 未通过':record.origin==='gt'?'GT 采集':'Seedance · 非 GT',record.origin==='gt'&&!record.candidate?'keep':'review'),chip(record.dataset),chip(record.split),chip(record.language));
   header.append(chips,element('h2','',record.origin==='gt'?`Episode ${record.episode_id}`:`生成样本 ${record.id.slice(-8)}`),element('p','',record.run_name));
   detail.append(header);
   const instruction=section('导航指令');instruction.append(element('p','instruction',record.instruction));detail.append(instruction);
@@ -206,12 +206,14 @@ function renderProduced(record){
     const source=element('a','button-link','查看原始指令');
     const link=new URL(window.location.href);link.search='';link.hash='atlas';
     for(const field of ['dataset','split','role','language'])link.searchParams.set(field,record[field]);link.searchParams.set('q',record.episode_id);
-    source.href=link.href;info.append(source);
+    source.href=record.dataset==='VLNVerse'?'#scenes/'+encodeURIComponent(record.scene):link.href;info.append(source);
   }
   if(record.origin==='seedance')info.append(element('p','issues','估计轨迹，非 GT。深度、可信标定、真实机体位姿及 FM / RVQ / apos / opos 监督未提供。'));
+  if(record.trajectory_source)info.append(element('p','hint',record.trajectory_source==='lightnav_inference'?'轨迹来源：LightNav 推理；位姿与深度来自实际仿真观测。':'轨迹来源：公开参考路线回放。'));
+  if(record.vlm_report){const report=element('details','details-toggle');report.append(element('summary','','VLM 轨迹审核'),element('pre','source',JSON.stringify(record.vlm_report,null,2)));info.append(report);}
   if(record.release)info.append(element('p','hint','已发布：'+record.release.id));
   detail.append(info);
-  const media=section(record.origin==='gt'?'LeRobot GT 视频':'Seedance 原始视频');media.classList.add('gt-video');
+  const media=section(record.candidate?'候选轨迹原始画面':record.origin==='gt'?'LeRobot GT 视频':'Seedance 原始视频');media.classList.add('gt-video');
   const video=record.artifacts.find(a=>a.id===record.video_artifact_id);
   if(video){const player=element('video');player.src='/api/artifacts/'+video.id;player.controls=true;player.preload='metadata';media.append(player);}
   else media.append(element('p','hint','尚未产生可播放视频，已保留任务日志及报告。'));
@@ -221,7 +223,7 @@ function renderProduced(record){
     if(trajectory){const view=section('估计轨迹 · 独立坐标，非 GT'),img=element('img');img.src='/api/artifacts/'+trajectory.id;img.alt='VGGT 估计轨迹';img.style.width='100%';view.append(img,element('p','hint','使用单目估计与参考路线尺度先验，不叠加到原场景 NavMesh。'));detail.append(view);}
   }
   const artifacts=section('产物下载'),downloads=element('details','details-toggle');downloads.append(element('summary','',`查看 ${record.artifacts.length} 个文件`));
-  for(const a of record.artifacts){const line=element('p'),link=element('a','button-link',a.name);link.href='/api/artifacts/'+a.id+(a.kind==='dataset'?'?archive=tar':'?download=true');link.target='_blank';line.append(link);downloads.append(line);}
+  for(const a of record.artifacts){const line=element('p'),link=element('a','button-link',a.name);link.href='/api/artifacts/'+a.id+(['dataset','capture'].includes(a.kind)?'?archive=tar':'?download=true');link.target='_blank';line.append(link);downloads.append(line);}
   artifacts.append(downloads);
   detail.append(artifacts);
 }
