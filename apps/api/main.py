@@ -16,6 +16,7 @@ from .settings import settings, ROOT
 from .schemas import RunRequest, ReviewRequest
 from .catalog_service import browse, detail, resolve_selection
 from . import produced_catalog
+from .produced_catalog import automatic_gt_passed
 from .preflight import health, validate_gt
 from workers.tasks import execute_run, run_dir
 from workers.command_runner import atomic_json
@@ -307,9 +308,11 @@ def publish(run_id: str):
         previous = db.scalar(select(Release).where(Release.run_id == run_id))
         if previous:
             return serialize(previous)
-        review = db.scalar(select(Review).where(Review.subject_id == run_id).order_by(Review.created_at.desc()).limit(1))
-        if not review or review.decision != "keep":
-            raise HTTPException(409, "请先审核并保留该任务产物")
+        automatic_gt = row.kind == "gt" and row.config.get("dataset") == "vlnverse"
+        if not automatic_gt:
+            review = db.scalar(select(Review).where(Review.subject_id == run_id).order_by(Review.created_at.desc()).limit(1))
+            if not review or review.decision != "keep":
+                raise HTTPException(409, "请先审核并保留该任务产物")
         artifacts = db.scalars(select(Artifact).where(Artifact.run_id == run_id)).all()
         if not artifacts or any(not Path(a.path).exists() for a in artifacts):
             raise HTTPException(409, "没有完整产物可供发布")
@@ -320,6 +323,11 @@ def publish(run_id: str):
             for artifact in datasets:
                 try:
                     check_metadata(artifact.path)
+                    if automatic_gt:
+                        metadata = json.loads((Path(artifact.path) / "meta/beta_nav.json").read_text())
+                        episodes = metadata.get("episodes", [])
+                        if not episodes or any(not automatic_gt_passed(e.get("vlm_review", {})) for e in episodes):
+                            raise ValueError("正式数据集中存在未通过 VLM 自动审核的轨迹")
                     report = json.loads((Path(artifact.path) / "meta/platform_validation.json").read_text())
                     if not all(report.get(k) is True for k in ("complete", "self_contained", "official_loader_all_frames", "all_30_source_arrays_exact", "geometry_recomputed")):
                         raise ValueError("缺少完整独立校验结果")

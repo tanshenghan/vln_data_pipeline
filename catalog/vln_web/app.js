@@ -148,7 +148,7 @@ function renderList() {
     button.setAttribute("aria-current", String(record.id === state.selected));
     const top = element("div", "sample-top"); const labels = element("div", "chips");
     labels.append(chip(record.dataset, record.dataset.toLowerCase()), chip(record.language));
-    if(record.origin)labels.append(chip(record.candidate?'候选 · 未通过':record.origin==='seedance'?'生成 · 非 GT':'采集 GT',record.candidate||record.origin==='seedance'?'review':'keep'));
+    if(record.origin)labels.append(chip(record.gt_passed?'GT 通过':record.candidate?'候选 · 未通过':record.origin==='seedance'?'生成 · 非 GT':'采集 GT',record.candidate||record.origin==='seedance'?'review':'keep'));
     else labels.append(chip(record.has_gt ? "GT 已接入" : record.split === "test" ? "GT 未公开" : "GT 未接入", record.has_gt ? "keep" : ""));
     top.append(element("span", "sample-id", record.origin==='seedance'?`生成样本 ${record.id.slice(-8)}`:`Episode ${record.episode_id}`), labels);
     const instruction = element("p", "sample-instruction", record.instruction || "该样本没有公开指令"); instruction.lang = record.language; instruction.dir = "auto";
@@ -194,13 +194,13 @@ function renderDetail(record) {
 function renderProduced(record){
   const detail=$('#detail');detail.replaceChildren();
   const header=element('div','detail-header'),chips=element('div','chips');
-  chips.append(chip(record.candidate?'导航候选 · 未通过':record.origin==='gt'?'GT 采集':'Seedance · 非 GT',record.origin==='gt'&&!record.candidate?'keep':'review'),chip(record.dataset),chip(record.split),chip(record.language));
+  chips.append(chip(record.gt_passed?'GT 通过':record.candidate?'导航候选 · 未通过':record.origin==='gt'?'GT 采集':'Seedance · 非 GT',record.origin==='gt'&&!record.candidate?'keep':'review'),chip(record.dataset),chip(record.split),chip(record.language));
   header.append(chips,element('h2','',record.origin==='gt'?`Episode ${record.episode_id}`:`生成样本 ${record.id.slice(-8)}`),element('p','',record.run_name));
   detail.append(header);
   const instruction=section('导航指令');instruction.append(element('p','instruction',record.instruction));detail.append(instruction);
   const quality={validated:'GT 校验通过',accepted:'质量通过',review:'待复核',rejected_vlm:'语义检查未通过',rejected_pre_qc:'基础质量未通过',rejected_trajectory:'轨迹检查未通过'};
   const info=section('来源与质量');
-  info.append(element('p','hint','执行状态：'+({succeeded:'已完成',failed:'失败',running:'运行中',cancelled:'已取消',paused:'已暂停',queued:'等待执行'}[record.run.status]||record.run.status)),element('p','hint',quality[record.quality]||record.quality),element('p','hint',`产物版本：${record.run_id}`));
+  info.append(element('p','hint','执行状态：'+({succeeded:'已完成',failed:'失败',running:'运行中',cancelled:'已取消',paused:'已暂停',queued:'等待执行'}[record.run.status]||record.run.status)),element('p','hint',record.gt_passed?'GT 通过':quality[record.quality]||record.quality),element('p','hint',`产物版本：${record.run_id}`));
   const task=element('a','button-link','任务、报告与审核');task.href='#run/'+record.run_id;info.append(task);
   if(record.source_record_id){
     const source=element('a','button-link','查看原始指令');

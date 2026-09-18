@@ -50,7 +50,7 @@ flowchart LR
 生产链路如下：
 
 - **R2R / RxR GT：** 源 episode → Habitat 回放 → 观测与监督 → 采集校验 → LeRobot 导出 → 契约校验 → 检查媒体与目录登记。
-- **VLNVerse：** 源指令 → 有公开路线则回放，否则由 LightNav 闭环推理 → 原生 USD 观测 → VLM 审核 → 通过且明确 STOP 的轨迹标注与导出，其余保留为候选。
+- **VLNVerse：** 源指令 → 有公开路线则回放，否则由 LightNav 闭环推理 → 原生 USD 观测 → VLM 审核 → 通过且明确 STOP 的轨迹标注与导出，数据校验完成后自动标记“GT 通过”，无需人工审核；其余保留为候选。
 - **Seedance：** 源样本或任务规划 → Prompt 编译 → 视频生成 → 质量过滤 → VGGT 估计轨迹 → 原始产物打包与目录登记。
 
 VLNVerse 的场景资源、公开参考路线范围及独立采样定义见 [Kujiale 接入说明](data_pipeline/docs/VLNVERSE.md)。网站分别显示资源同步状态和采集环境就绪状态。真实网站任务与质量结果见 [VLNVerse 验收记录](docs/VALIDATION_20260918_VLNVERSE.md)。

@@ -274,3 +274,30 @@ def test_cancel_paused_batch_is_terminal_without_redispatch(platform):
     assert client.get('/api/runs/'+rid).json()['status']=='cancelled'
     assert json.loads((run_dir(rid)/'control.json').read_text())=={'action':'cancel'}
     assert dispatch.call_count==1
+
+
+@pytest.mark.parametrize('decision,accepted,terminal,valid,expected', [
+    ('pass',True,True,True,200),
+    ('reject',True,True,True,409),
+    ('uncertain',False,True,True,409),
+    ('pass',True,False,True,409),
+    ('pass',True,True,False,409),
+])
+def test_vlnverse_release_uses_automatic_review_without_manual_gate(platform,decision,accepted,terminal,valid,expected):
+    client,_=platform
+    from workers.tasks import register
+    from contracts.check import CONTRACT_PATH
+    rid='automatic-vlnverse-test'
+    with db.session() as session:
+        session.add(db.Run(id=rid,request_key=rid,kind='gt',name='Automatic GT',status='succeeded',config={'dataset':'vlnverse'}))
+    dataset=run_dir(rid)/'dataset';(dataset/'meta').mkdir(parents=True)
+    contract=json.loads(CONTRACT_PATH.read_text())
+    episode={k:contract[k] for k in ('pointing_config','camera')}
+    episode['vlm_review']={'decision':decision,'accepted':accepted,'explicit_terminal':terminal}
+    (dataset/'meta/beta_nav.json').write_text(json.dumps({**contract['metadata'],'features':contract['features'],'episodes':[episode]}))
+    report={k:valid for k in ('complete','self_contained','official_loader_all_frames','all_30_source_arrays_exact','geometry_recomputed')}
+    (dataset/'meta/platform_validation.json').write_text(json.dumps(report))
+    register(rid,'dataset',dataset)
+    assert client.post('/api/releases/'+rid).status_code==expected
+    with db.session() as session:
+        assert session.query(db.Review).count()==0

@@ -4,11 +4,17 @@ from sqlalchemy import select, or_, func
 from .db import DataSample, Artifact, Run, Release, Review, session, serialize
 
 
+def automatic_gt_passed(review):
+    return (isinstance(review, dict) and review.get('accepted') is True
+            and review.get('decision') == 'pass' and review.get('explicit_terminal') is True)
+
+
 def public_sample(row, artifacts=None):
     result=serialize(row)
     result.update(row.details)
     gt = row.origin=='gt' and not row.details.get('candidate',False)
-    result.update(id=row.id, source_id=row.run_id, version=row.run_id,
+    passed = gt and row.quality=='validated' and (row.dataset!='VLNVerse' or automatic_gt_passed(row.details.get('vlm_report')))
+    result.update(gt_passed=passed, id=row.id, source_id=row.run_id, version=row.run_id,
                   origin=row.origin, source_record_id=row.source_record_id,
                   ground_truth=gt, has_gt=gt,
                   has_gt_video=gt and bool(row.details.get('video_artifact_id')),

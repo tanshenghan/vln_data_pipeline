@@ -59,3 +59,17 @@
 @media(max-width:760px){.platform-nav{gap:2px}.platform-nav a{padding:8px;font-size:.8rem}.pipeline-page .form-grid,.pipeline-page .columns,.pipeline-page .artifact-list{grid-template-columns:1fr}.pipeline-page .stats{grid-template-columns:1fr 1fr}.pipeline-page .stats>div:last-child{grid-column:auto}.pipeline-page .run-head,.pipeline-heading{align-items:flex-start;flex-direction:column}.pipeline-page table{font-size:.75rem}.pipeline-page td,.pipeline-page th{padding:10px 6px}.pipeline-page .form-card{padding:18px}}
 
 .pipeline-page .prompt-text{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:.875rem;line-height:1.8;background:var(--back);padding:18px;border-radius:7px;margin:14px 0}
+
+/* Review results stay in the existing task card; evidence uses the recorded RGB. */
+.pipeline-page #trajectory-review{margin:20px 0}
+.pipeline-page .review-title{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.pipeline-page .review-title h4{margin:0;overflow-wrap:anywhere}
+.pipeline-page .review-title .status{font-size:.875rem;font-weight:600;padding:7px 10px}
+.pipeline-page .review-facts{display:grid;grid-template-columns:2fr repeat(3,1fr);gap:12px;margin:16px 0}
+.pipeline-page .review-facts dt{color:var(--muted);font-size:.8rem;margin-bottom:6px}
+.pipeline-page .review-facts dd{margin:0;overflow-wrap:anywhere;font-weight:500}
+.pipeline-page .review-evidence{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:14px 0}
+.pipeline-page .review-frame{display:block;border:1px solid var(--line);border-radius:7px;overflow:hidden;font-size:.75rem}
+.pipeline-page .review-frame img{display:block;width:100%;aspect-ratio:47/28;object-fit:contain;background:var(--accent-soft)}
+.pipeline-page .review-frame span{display:block;padding:8px}
+@media(max-width:760px){.pipeline-page .review-facts{grid-template-columns:1fr 1fr}.pipeline-page .review-facts>div:first-child{grid-column:1/-1}.pipeline-page .review-evidence{grid-template-columns:repeat(2,minmax(0,1fr))}}
