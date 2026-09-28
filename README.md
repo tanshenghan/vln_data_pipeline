@@ -18,6 +18,9 @@ GT 采集以 `Beta_Nav/data_pipeline` 的数据定义为基准，在工作站运
 
 网站沿用 VLN Atlas 的三栏数据浏览布局，通过顶部导航进入采集、生成、任务审核和工作站状态页面。
 
+SRDF 公开 HM3D round-3 指令与离散参考路线已加入数据浏览；连续采集需另行获得
+SRDF-CE 访问授权并完成验收，当前不会将离散路标当作 GT。[SRDF 接入说明](data_pipeline/docs/SRDF.md)。
+
 ## 系统架构
 
 平台采用统一 Web 入口、模块化 API 和独立任务执行进程。网页负责提交任务与展示结果，工作站负责实际采集和本地计算；任务不依赖浏览器会话存活。
@@ -91,6 +94,9 @@ VLN_Data_Pipeline/
 
 字段、坐标、形状及语义以 [LeRobot 数据格式](data_pipeline/docs/LEROBOT_FORMAT.md)为准，检查入口见[契约说明](contracts/README.md)。
 
+ScaleVLN 使用 StreamVLN 连续轨迹子集和共享 HM3D，支持网页本机采集及同一套导出校验；
+源版本、场景覆盖和部署步骤见 [ScaleVLN 接入说明](data_pipeline/docs/SCALEVLN.md)。
+
 ### Seedance 产物
 
 保存原始视频、Prompt、生成配置、供应商任务 ID、质量报告、已有估计轨迹及用量信息，并关联生成所用的源样本。
@@ -120,7 +126,11 @@ VLN_Data_Pipeline/
 
 ## 配置与开发
 
+GT 表单支持「云端空闲采集」：通过火山 H20 和百度 AIHC PRO6000/B200 的原生闲时任务使用空闲 GPU，有前台任务排队时让位，空闲后从已完成分片续跑。接入前需准备 AK/SK、队列、采集镜像及双方可访问的持久化存储，详见[云端采集配置](docs/CLOUD_COLLECTION.md)。
+
 平台通过根目录 `.env` 读取 `VLN_` 配置，字段示例见 [.env.example](.env.example)。API 密钥保存在仓库外，由受控配置文件注入。部署时需分别准备执行环境、数据资产、数据库和服务；服务安装脚本不负责下载完整数据或安装计算环境。
+
+多人开发可用 `VLN_SOURCE_ROOT` 复用只读数据集、场景和码本；`VLN_RESOURCE_ROOT/runs` 可以是共享输出，`VLN_RUNTIME_ROOT`、数据库和队列仍独立。GPU0、PRO6000、B200 可选择自定义数量或持续采集，详见[共享轨迹与持续采集](data_pipeline/docs/SHARED_RUNS.md)。不设置新配置时沿用原部署路径。
 
 已配置开发环境后，在仓库根目录执行：
 

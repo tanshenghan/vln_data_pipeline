@@ -75,6 +75,10 @@ def read_gt_entries(path):
 
 
 def normalize_gt(entry, start):
+    # ScaleVLN's reference_path is a sparse route guide, not per-step GT.
+    # Even coincidentally matching action counts cannot establish alignment.
+    if entry.get("locations_source") == "source_reference_path":
+        raise ValueError("reference_path_only")
     raw = entry.get("locations")
     if not isinstance(raw, list) or not raw:
         raise ValueError("missing_locations")

@@ -4,7 +4,9 @@
 
 | 配置 | 当前部署 / 默认值 |
 |---|---|
-| `VLN_RESOURCE_ROOT` | `/home/beta/.local/share/vln-pipeline`，场景、源数据、码本与生产结果 |
+| `VLN_RESOURCE_ROOT` | 默认当前用户的 `.local/share/vln-pipeline`；生产结果、验收输出，以及未单独配置时的源资源 |
+| `VLN_SOURCE_ROOT` | 可选共享输入根目录；未设置时沿用 `VLN_RESOURCE_ROOT`，兼容原部署 |
+| `VLN_RVQ_BUNDLE_ROOT` | 可选只读码本目录；未设置时为源根目录的 `action_tokenizer/` |
 | `VLN_RUNTIME_ROOT` | 项目 `runtime/`，可重建索引、服务状态和缓存 |
 | `VLN_DATABASE_URL` | `postgresql+psycopg:///vln_pipeline`，本机 Unix socket / peer 身份 |
 | `VLN_REDIS_URL` | `redis://127.0.0.1:6379/5` |
@@ -17,6 +19,64 @@
 | `VLN_MINIMUM_FREE_GB` | `5`，基础启动门槛；不是全量数据的容量预估 |
 
 生成密钥文件中的 `ARK_API_KEY` 仅由生成子进程读取。模型端点与可选价格沿用 `navgen_pipeline/config.py`，实际费用与估算费用必须区分。修改环境配置后，重启 API 和 Worker 使新任务读取新配置；不要修改已提交的任务参数来改变生成定义。
+
+## 共享数据与独立开发目录
+
+多用户开发可在各自未提交的 `.env` 中设置 `VLN_SOURCE_ROOT`，指向已有资源根目录。
+API、容量预检、Worker 以及源目录索引使用同一配置：
+
+| 内容 | 读取 / 写入位置 |
+|---|---|
+| R2R、RxR、ScaleVLN、SRDF、VLNVerse 原始标注 | 读取 `VLN_SOURCE_ROOT/datasets/` |
+| MP3D 场景与 NavMesh | 读取 `VLN_SOURCE_ROOT/scene_datasets/mp3d/` |
+| HM3D 场景与 NavMesh | 读取 `VLN_SOURCE_ROOT/scene_datasets/hm3d/` |
+| VLNVerse 场景 | 优先已有显式配置，其次读取 `VLN_SOURCE_ROOT/scene_datasets/vlnverse/` |
+| RVQ 码本、HDR 渲染资源 | 读取 `VLN_SOURCE_ROOT/action_tokenizer/`、`render_assets/` |
+| 新采集数据、日志、验收输出 | 写入 `VLN_RESOURCE_ROOT/runs/`；环境实测在其 `_validation/` 下 |
+| 源目录索引、服务状态 | 写入个人 `VLN_RUNTIME_ROOT/` |
+
+共享 VLNVerse 场景若在另一块盘上，使用只读入口 `VLN_VLNVERSE_SCENE_ROOT`。
+`VLN_VLNVERSE_MANAGED_SCENE_ROOT` 是显式配置的下载目标，勿将他人的共享目录配置为自己的下载目标。
+源目录需要当前服务账号的读取及目录遍历权限；不可读的码本在健康检查中显示未就绪。
+配置输入路径不会安装 Habitat/LeRobot、启动 Worker 或替代真实环境验收。
+如果共享根目录下的码本不可读，但已有可读的 LightNav 模型部署，设置
+`VLN_RVQ_BUNDLE_ROOT` 指向其 `action_tokenizer/`，无需修改其他账号的目录权限。
+Habitat/LeRobot 解释器也可通过各自配置复用，不能向共享环境安装依赖。
+首次运行 [R2R/RxR 环境实测验收](../data_pipeline/docs/ENVIRONMENT_ACCEPTANCE.md)：
+只有真实采集、导出、独立校验和视频全部成功，才记录工作站通过验收。
+
+无需改动导师或生产部署的 `.env`：未设置 `VLN_SOURCE_ROOT` 时，原有路径保持不变。
+实际机器路径、数据库、Redis 队列、端口及服务配置只保存在各自部署配置中，不随分支合并。
+多用户应使用独立数据库、Redis DB、Atlas 实例和端口。输出可以使用共享资源根目录，
+每个任务的 UUID 目录彼此隔离；共享文件不会自动合并各自的网站任务数据库。
+共享输出、迁移与 GPU0 持续采集见
+[共享轨迹输出和持续采集](../data_pipeline/docs/SHARED_RUNS.md)。
+
+按当前 `.env` 重建个人源索引：
+
+```bash
+.venv/bin/python configs/build_source_catalog.py
+```
+
+该命令将根目录解析为绝对路径，配置快照写入 `runtime/sources.local.json`，
+索引写入 `runtime/vln.sqlite`（都遵循 `VLN_RUNTIME_ROOT`）。只读源标注，不复制场景。
+源索引与容量预检兼容 RxR 原始标注中的 `NaN` 语音时间戳；这些字段不参与采集帧数预算。
+检测到已准备好的 `datasets/ScaleVLN_StreamVLN/source_manifest.json` 时自动加入 ScaleVLN；
+尚未安装它的部署不受影响。VLNVerse 原始标注由 API 直接读取，不需要纳入这个索引。
+已准备好的 `datasets/SRDF/source_manifest.json` 也会自动注册；公开 round-3 只供浏览，
+不代表连续 GT 可采集。下载、版本与授权边界见 [SRDF 接入说明](../data_pipeline/docs/SRDF.md)。
+如需 Atlas 的专家轨迹几何索引，再运行：
+
+```bash
+.venv/bin/python -m catalog.build_vln_geometry \
+  --catalog runtime/vln.sqlite --output runtime/vln-geometry.sqlite
+```
+
+主索引重建后须同步重建几何索引，以保持同一快照；随后重启自己的 Atlas 服务。
+若存在 `vln-videos.sqlite`，也须按其原有来源清单重建视频索引。仅包含平台登记的
+产物时可运行 `.venv/bin/python -m workers.catalog_sync`；手工导入的来源不能省略。
+俯视图另需给几何索引工具传入 `--scene-root` 与 `--habitat-python`；
+该步骤将场景读取结果写入个人索引，不改动共享场景。
 
 ## 当前部署
 
@@ -64,8 +124,13 @@ GT 导出环境为 Python 3.11、`lerobot==0.4.4`、`numpy==1.26.4`；CPU Torch 
 
 ## GT 原始参数文档
 
+云端资源接入、独立调度服务、原生闲时优先级、抢占恢复及采集镜像构建见[云端空闲 GT 采集](CLOUD_COLLECTION.md)。现有部署只增加云服务时，使用 `configs/install_services.py --only vln-cloud`，随后重启本部署的 API/Worker/Beat 加载新代码；保留各自端口和服务名。
+
 - [GT 数据格式](../data_pipeline/docs/LEROBOT_FORMAT.md)
 - [GT 管线说明](../data_pipeline/README.md)
+- [ScaleVLN 连续轨迹接入与网页采集](../data_pipeline/docs/SCALEVLN.md)
+- [HM3D 全量共享资产与三版 ObjectNav 原始数据浏览](../data_pipeline/docs/HABITAT_OBJECTNAV.md)
+- [EVT-Bench 原生环境探测与 HM3D 共享输入](../data_pipeline/docs/EVT_AND_HM3D.md)
 - [总体架构与验收要求](ARCHITECTURE_PLAN.md)
 
 网页新增参数应映射到既有 GT 入口，不能改变坐标、时间、四类监督或各自 mask 的含义。跨环境校验只允许投影浮点值 `1e-9` 的绝对舍入误差，离散 token、状态和 mask 仍严格比较。

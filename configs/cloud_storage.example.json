@@ -1,0 +1,12 @@
+{
+  "target": "root@REPLACE_PFS_GATEWAY",
+  "port": 22,
+  "remote_directory": "/mnt/pfs/REPLACE_NAMESPACE/vln-pipeline",
+  "mountpoint": "/mnt/vln-cloud/baidu",
+  "identity_file": "/home/REPLACE_USER/.config/vln-pipeline/cloud_ed25519",
+  "known_hosts_file": "/home/REPLACE_USER/.config/vln-pipeline/known_hosts",
+  "uid": 1000,
+  "gid": 1000,
+  "sftp_mode": "setpriv",
+  "sftp_server": "/usr/lib/openssh/sftp-server"
+}

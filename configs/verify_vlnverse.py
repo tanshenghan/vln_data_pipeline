@@ -19,7 +19,7 @@ from workers.tasks import common_env
 
 def main():
     report_path=settings.runtime_root/'vlnverse_environment_validation.json'
-    output=settings.resource_root/'validation'/('vlnverse-'+uuid.uuid4().hex[:12])
+    output=settings.runs_root/'_validation'/('vlnverse-'+uuid.uuid4().hex[:12])
     output.mkdir(parents=True)
     report={'complete':False,'status':'running','directory':str(output),'python':str(settings.isaac_python),
             'started_at':datetime.now(timezone.utc).isoformat()}
@@ -40,7 +40,7 @@ def main():
         capture=output/'capture';dataset=output/'dataset'
         roots=[arg for p in settings.vlnverse_scene_roots if p for arg in ['--scene-root',p]]
         execute('capture',[sys.executable,'-m','workers.vlnverse_capture',settings.isaac_python,'--config',config,
-            '--output',capture,'--rvq-bundle',settings.resource_root/'action_tokenizer',*roots],gpu=True)
+            '--output',capture,'--rvq-bundle',settings.rvq_bundle,*roots],gpu=True)
         execute('annotate',[settings.lerobot_python,'data_pipeline/collect_vlnverse.py','--output',capture,'--annotate'])
         execute('validate_capture',[settings.lerobot_python,'data_pipeline/validate_r2r.py',capture])
         execute('export',[settings.lerobot_python,'data_pipeline/export_lerobot.py',capture,

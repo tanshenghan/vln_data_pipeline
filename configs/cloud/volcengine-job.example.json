@@ -1,0 +1,47 @@
+{
+  "RuntimeConfig": {
+    "Framework": "Custom",
+    "Image": {
+      "Type": "Custom",
+      "Url": "REPLACE_IMAGE:tested-version"
+    }
+  },
+  "ResourceConfig": {
+    "Roles": [
+      {
+        "Name": "worker",
+        "Replicas": 1,
+        "Resource": {
+          "Type": "REPLACE_RESOURCE_TYPE",
+          "InstanceTypeId": "REPLACE_ONE_GPU_INSTANCE_TYPE"
+        }
+      }
+    ]
+  },
+  "StorageConfig": {
+    "Storages": [
+      {
+        "Type": "Vepfs",
+        "MountPath": "/mnt/cloud",
+        "ReadOnly": false,
+        "Config": {
+          "Vepfs": {
+            "Id": "REPLACE_VEPFS_ID",
+            "SubPath": "/vln-pipeline"
+          }
+        }
+      },
+      {
+        "Type": "Vepfs",
+        "MountPath": "/mnt/source",
+        "ReadOnly": true,
+        "Config": {
+          "Vepfs": {
+            "Id": "REPLACE_VEPFS_ID",
+            "SubPath": "/source"
+          }
+        }
+      }
+    ]
+  }
+}

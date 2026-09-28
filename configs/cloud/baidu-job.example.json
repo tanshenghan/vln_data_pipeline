@@ -1,0 +1,51 @@
+{
+  "jobType": "PyTorchJob",
+  "jobSpec": {
+    "image": "REPLACE_IMAGE:tested-version",
+    "replicas": 1,
+    "resources": [
+      {
+        "name": "REPLACE_GPU_RESOURCE_DESCRIPTOR",
+        "quantity": 1
+      },
+      {
+        "name": "cpu",
+        "quantity": 16
+      },
+      {
+        "name": "memory",
+        "quantity": 64
+      },
+      {
+        "name": "sharedMemory",
+        "quantity": 8
+      }
+    ],
+    "envs": [
+      {
+        "name": "NVIDIA_DRIVER_CAPABILITIES",
+        "value": "compute,utility,graphics"
+      }
+    ]
+  },
+  "datasources": [
+    {
+      "type": "pfs",
+      "name": "REPLACE_PFS_ID",
+      "sourcePath": "/vln-pipeline",
+      "mountPath": "/mnt/cloud",
+      "options": {
+        "readOnly": false
+      }
+    },
+    {
+      "type": "pfs",
+      "name": "REPLACE_PFS_ID",
+      "sourcePath": "/source",
+      "mountPath": "/mnt/source",
+      "options": {
+        "readOnly": true
+      }
+    }
+  ]
+}

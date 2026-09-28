@@ -176,6 +176,31 @@ class GTVideoTests(unittest.TestCase):
                              self.root / "videos", self.root / "render.py", "/usr/bin/python3")
         self.assertFalse(index.exists())
 
+    def test_collection_binds_scalevln_basis_scene_without_allowing_traversal(self):
+        scene_id = "hm3d/train/00337-CFVBbU9Rsyb/CFVBbU9Rsyb.basis.glb"
+        item = json.loads((self.dataset / "meta/beta_nav.json").read_text())["episodes"][0]
+        item.update(scene_id=scene_id, source_metadata={"dataset": "scalevln", "split": "train"})
+        metadata = self.dataset / "meta/beta_nav.json"
+        metadata.write_text(json.dumps({"episodes": [item]}))
+        with sqlite3.connect(self.catalog) as db:
+            db.row_factory = sqlite3.Row
+            row = dict(db.execute("SELECT * FROM episodes WHERE id=?", (self.ids["1"],)).fetchone())
+            row.update(id="scalevln-1", source_id="test-scalevln", dataset="ScaleVLN", scene="CFVBbU9Rsyb.basis")
+            db.execute(f"INSERT INTO episodes ({','.join(row)}) VALUES ({','.join('?' for _ in row)})", list(row.values()))
+        sources = [{"root": str(self.dataset), "source_id": "test-scalevln", "dataset": "ScaleVLN", "split": "train", "role": "guide"}]
+        index = self.root / "scalevln.sqlite"
+        config = build_collection(self.catalog, sources, index, self.root / "videos", self.root / "render.py", "/usr/bin/python3")
+        service = GTVideoService(index, self.meta)
+        self.addCleanup(service.pool.shutdown, wait=True)
+        self.assertEqual(config["matched_records"], 1)
+        self.assertEqual(service.records["scalevln-1"]["scene"], "CFVBbU9Rsyb.basis")
+        self.assertIn("/scalevln/train/guide/CFVBbU9Rsyb.basis/", str(service.paths("scalevln-1")["video"]))
+        for bad_scene in ("../../CFVBbU9Rsyb.basis.glb", "hm3d/train/00337-CFVBbU9Rsyb/../CFVBbU9Rsyb.basis.glb"):
+            with self.subTest(bad_scene=bad_scene):
+                metadata.write_text(json.dumps({"episodes": [{**item, "scene_id": bad_scene}]}))
+                with self.assertRaises(ValueError):
+                    build_collection(self.catalog, sources, self.root / "unsafe.sqlite", self.root / "videos", self.root / "render.py", "/usr/bin/python3")
+
     def test_shared_video_preserves_each_instruction_and_discloses_provenance(self):
         original = self.ids["1"]
         self.complete(original)

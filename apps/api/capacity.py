@@ -5,6 +5,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import ijson
+from catalog.vln_catalog import read_rows
 from data_pipeline.vlnce_source import source_paths, rxr_replay_actions
 from .settings import settings
 
@@ -12,13 +13,16 @@ from .settings import settings
 @lru_cache(maxsize=12)
 def inventory(episode_path, gt_path, episode_stamp, gt_stamp, dataset):
     records = {}
-    with gzip.open(episode_path, "rb") as stream:
-        for row in ijson.items(stream, "episodes.item"):
-            eid = str(row["episode_id"])
-            if eid in records:
-                raise ValueError("源数据存在重复 episode ID")
-            records[eid] = {"scene": Path(row["scene_id"]).stem,
-                            "language": row["instruction"].get("language"), "frames": None}
+    # Native RxR annotations contain NaN speech timestamps. The catalog reader
+    # streams these original episodes without requiring strict JSON numbers;
+    # timing fields are not involved in frame counts or storage estimates.
+    for row in read_rows(Path(episode_path)):
+        eid = str(row["episode_id"])
+        if eid in records:
+            raise ValueError("源数据存在重复 episode ID")
+        records[eid] = {"scene": Path(row["scene_id"]).stem,
+                        "scene_path": row["scene_id"],
+                        "language": row["instruction"].get("language"), "frames": None}
     with gzip.open(gt_path, "rb") as stream:
         for eid, row in ijson.kvitems(stream, ""):
             if eid in records:
@@ -31,16 +35,17 @@ def inventory(episode_path, gt_path, episode_stamp, gt_stamp, dataset):
     return records
 
 
-def estimate_gt(cfg):
+def estimate_gt(cfg, *, storage_root=None, verify_scenes=True):
     if cfg["dataset"] == "vlnverse":
         from catalog.vlnverse_scenes import usd_path
         from data_pipeline.vlnverse_source import replay_plan
         selected = {}
         for record in cfg.get("source_records", []):
-            scene = usd_path(settings.vlnverse_scene_roots, record["scene"])
-            # Platform downloads become available only after every dependency is verified.
-            if not (scene.parent / "platform_asset_manifest.json").is_file():
-                raise ValueError("场景资源下载校验尚未完成：" + record["scene"])
+            if verify_scenes:
+                scene = usd_path(settings.vlnverse_scene_roots, record["scene"])
+                # Platform downloads become available only after every dependency is verified.
+                if not (scene.parent / "platform_asset_manifest.json").is_file():
+                    raise ValueError("场景资源下载校验尚未完成：" + record["scene"])
             selected[record["episode_id"]] = {"scene": record["scene"], "frames": (len(replay_plan(record)["poses_source"]) if record["has_reference_gt"] else cfg.get("lightnav_max_steps", 500)+1)}
         if not selected:
             raise ValueError("缺少已冻结的 VLNVerse 参考轨迹")
@@ -57,13 +62,19 @@ def estimate_gt(cfg):
         if any(row["frames"] is None for row in selected.values()):
             raise ValueError("所选 episode 缺少专家 GT")
         scenes = {row["scene"] for row in selected.values()}
-        for name in scenes:
-            scene = settings.resource_root / "scene_datasets/mp3d" / name / (name + ".glb")
+        if cfg["dataset"] == "scalevln" and verify_scenes:
+            from data_pipeline.scalevln_source import scene_ready
+            for scene_id in {row["scene_path"] for row in selected.values()}:
+                if not scene_ready(settings.scenes_root, scene_id):
+                    raise ValueError("ScaleVLN 场景或 navmesh 尚未就绪：" + scene_id)
+        for name in scenes if verify_scenes and cfg["dataset"] != "scalevln" else []:
+            scene = settings.scenes_root / "mp3d" / name / (name + ".glb")
             if not scene.is_file() or not scene.with_suffix(".navmesh").is_file():
                 raise ValueError(f"场景尚未就绪：{name}")
-    settings.runs_root.mkdir(parents=True, exist_ok=True)
+    destination = storage_root or settings.runs_root
+    destination.mkdir(parents=True, exist_ok=True)
     try:
-        with tempfile.TemporaryFile(dir=settings.runs_root) as probe:
+        with tempfile.TemporaryFile(dir=destination) as probe:
             probe.write(b"output permission check")
             probe.flush()
     except OSError as exc:
@@ -74,7 +85,7 @@ def estimate_gt(cfg):
     per_frame = 470 * 280 * (3 + 4 + 1) + 65536
     copies = 3 if cfg["full_dataset"] else 2
     required = frames * per_frame * copies / 1024**3 + settings.minimum_free_gb
-    free = shutil.disk_usage(settings.runs_root).free / 1024**3
+    free = shutil.disk_usage(destination).free / 1024**3
     return {"episodes": len(selected), "scenes": len(scenes), "frames": frames,
             "estimated_peak_gb": round(required, 2), "free_gb": round(free, 2),
             "can_start": free >= required, "gpu_id": settings.gpu_id,

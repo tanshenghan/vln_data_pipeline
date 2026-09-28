@@ -11,7 +11,7 @@ import time
 import uuid
 from datetime import timedelta
 from sqlalchemy import select
-from apps.api.db import Artifact, Run, now, session, update_run
+from apps.api.db import Artifact, CloudExecution, Run, now, session, update_run
 from apps.api.settings import ROOT, settings
 from .celery_app import celery
 from .command_runner import atomic_json, identity
@@ -26,10 +26,21 @@ class Cancelled(Exception):
 
 
 def run_dir(run_id):
+    if not settings.cloud_worker:
+        with session() as db:
+            binding = db.get(CloudExecution, run_id)
+            if binding:
+                archived = settings.runs_root / run_id
+                if settings.shared_run_permissions and (archived / ".shared-cloud-output.json").is_file():
+                    return archived
+                return Path(binding.directory)
     return settings.runs_root / run_id
 
 
 def control(run_id):
+    if settings.cloud_worker:
+        # The supervisor also enforces the lease while a stage owns the GPU.
+        return json.loads((run_dir(run_id) / "cloud_control.json").read_text())["action"]
     with session() as db:
         return db.get(Run, run_id).control
 
@@ -73,7 +84,8 @@ def execute(run_id, stage, argv, env=None):
         last.mkdir()
         atomic_json(last / "command.json", spec)
         runner = subprocess.Popen([sys.executable, "-m", "workers.command_runner", str(last)],
-                         cwd=ROOT, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                         cwd=ROOT, start_new_session=not settings.cloud_worker,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     update_run(run_id, stage=stage, status="running", heartbeat=now())
     while not (last / "exit.json").exists():
         if runner is not None and runner.poll() is not None and not (last / "exit.json").exists():
@@ -81,7 +93,7 @@ def execute(run_id, stage, argv, env=None):
         intent = control(run_id)
         if stage == "collect_shards":
             atomic_json(run_dir(run_id) / "control.json", {"action": intent})
-        if intent == "cancel" and (last / "process.json").exists():
+        if intent == "cancel" and not settings.cloud_worker and (last / "process.json").exists():
             info = json.loads((last / "process.json").read_text())
             if identity(info["pid"]) == info["start"]:
                 os.killpg(info["pid"], signal.SIGTERM)
@@ -123,10 +135,11 @@ def execute(run_id, stage, argv, env=None):
 
 def common_env():
     return {"HABITAT_PYTHON": str(settings.habitat_python), "LEROBOT_PYTHON": str(settings.lerobot_python),
-            "BETA_GPU_ID": str(settings.gpu_id), "BETA_SCENES_DIR": str(settings.resource_root / "scene_datasets"),
-            "BETA_RVQ_BUNDLE": str(settings.resource_root / "action_tokenizer"),
-            "BETA_VLNVERSE_HDR": str(settings.resource_root / "render_assets/limpopo_golf_course_4k.hdr"),
+            "BETA_GPU_ID": str(settings.gpu_id), "BETA_SCENES_DIR": str(settings.scenes_root),
+            "BETA_RVQ_BUNDLE": str(settings.rvq_bundle),
+            "BETA_VLNVERSE_HDR": str(settings.vlnverse_hdr),
             "PYTHONPATH": str(ROOT / "src") + ":" + str(ROOT), "PYTHONUNBUFFERED": "1",
+            "PYTHONDONTWRITEBYTECODE": "1",
             "OMP_NUM_THREADS": "2", "OPENBLAS_NUM_THREADS": "2", "HF_HUB_OFFLINE": "1"}
 
 
@@ -167,12 +180,13 @@ def register(run_id, kind, path, details=None):
                             path=str(path), details=details or {}))
 
 
-def collect_gt(run_id, cfg):
+def collect_gt(run_id, cfg, *, publish_catalog=True):
     directory = run_dir(run_id)
     env = common_env()
     env["BETA_DATA_ROOT"] = str(settings.dataset_root(cfg["dataset"]))
     output = directory / "dataset"
     if cfg["full_dataset"]:
+        archive_failed_output(run_id, "collect_shards", output)
         atomic_json(directory / "control.json", {"action": control(run_id)})
         execute(run_id, "collect_shards", [settings.lerobot_python, "data_pipeline/build_r2r_train.py",
             "--output-dir", output, "--dataset", cfg["dataset"], "--split", cfg["split"],
@@ -193,7 +207,7 @@ def collect_gt(run_id, cfg):
                 {**env, "OMNI_KIT_ACCEPT_EULA": "YES"})
             execute(run_id, "vlm_review", [sys.executable, "data_pipeline/review_vlnverse.py", raw,
                 "--env-file", settings.navgen_env], env)
-            register_vlnverse_candidates(run_id, raw)
+            register_vlnverse_candidates(run_id, raw, publish_catalog=publish_catalog)
             review = json.loads((raw / "vlm_review_summary.json").read_text())
             if not review["accepted"]:
                 register(run_id, "capture", raw, {"candidate":True,"ground_truth":False})
@@ -226,13 +240,14 @@ def collect_gt(run_id, cfg):
              "episodes": [{k:v for k,v in e.items() if k in {"episode_id","scene_id","frames","instruction","source_metadata"}} for e in metadata["episodes"]]})
     for name in ["platform_validation.json", "beta_nav.json", "info.json", "stats.json"]:
         register(run_id, "report", output / "meta" / name)
-    from .catalog_sync import sync_gt_catalog
-    sync_gt_catalog()
-    from .sample_catalog import register_samples
-    register_samples(run_id)
+    if publish_catalog:
+        from .catalog_sync import sync_gt_catalog
+        sync_gt_catalog()
+        from .sample_catalog import register_samples
+        register_samples(run_id)
 
 
-def register_vlnverse_candidates(run_id, raw):
+def register_vlnverse_candidates(run_id, raw, *, publish_catalog=True):
     """Make reviewed candidates inspectable even when none qualifies for export."""
     import shutil
     audit = run_dir(run_id) / "trajectory_review"
@@ -254,8 +269,9 @@ def register_vlnverse_candidates(run_id, raw):
         register(run_id,"video",movie,{"episode_id":eid,"ground_truth":report["accepted"],
             "trajectory_source":report["trajectory_source"],"semantic_decision":report["decision"],"candidate":not report["accepted"]})
     register(run_id,"capture",raw,{"ground_truth":False,"contains_candidates":bool(summary["candidates"])})
-    from .sample_catalog import register_vlnverse_candidates as catalog_candidates
-    catalog_candidates(run_id)
+    if publish_catalog:
+        from .sample_catalog import register_vlnverse_candidates as catalog_candidates
+        catalog_candidates(run_id)
 
 
 def generate_seedance(run_id, cfg):
@@ -295,6 +311,8 @@ def execute_run(run_id):
             if not row or row.status not in {"queued", "running"}:
                 return
             cfg = row.config
+            if cfg.get("execution") == "cloud_idle":
+                return  # Only the independent cloud controller may dispatch this run.
             row.attempt += 1
             row.error = None
             row.status = "running"
@@ -315,13 +333,19 @@ def execute_run(run_id):
         except Exception as exc:
             update_run(run_id, status="failed", error=str(exc)[:4000], heartbeat=now())
             raise
+        finally:
+            from .output_storage import share_run_outputs
+            share_run_outputs(directory)
 
 
 @celery.task(name="workers.tasks.reconcile")
 def reconcile():
+    from .local_collection import refill_local
+    refill_local()
     # The per-run file lock is the authoritative guard; DB heartbeat alone never kills/restarts a process.
     with session() as db:
         rows = db.scalars(select(Run).where(Run.status.in_(["queued", "running"]))).all()
-        ids = [r.id for r in rows if r.status == "queued" or not r.heartbeat or r.heartbeat < now() - timedelta(seconds=90)]
+        ids = [r.id for r in rows if r.config.get("execution") != "cloud_idle" and
+               (r.status == "queued" or not r.heartbeat or r.heartbeat < now() - timedelta(seconds=90))]
     for run_id in ids:
         execute_run.delay(run_id)

@@ -21,6 +21,8 @@ def platform(tmp_path, monkeypatch):
     monkeypatch.setattr(main,"engine",engine)
     monkeypatch.setattr(settings,"runtime_root",tmp_path/"runtime")
     monkeypatch.setattr(settings,"resource_root",tmp_path/"resources")
+    monkeypatch.setattr(settings,"source_root",None)
+    monkeypatch.setattr(settings,"rvq_bundle_root",None)
     settings.runtime_root.mkdir();settings.resource_root.mkdir()
     source=tmp_path/"source";source.mkdir()
     (source/"train.json").write_text(json.dumps({"episodes":[{

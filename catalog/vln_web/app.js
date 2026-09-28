@@ -177,6 +177,7 @@ function renderDetail(record) {
   const header = element("div", "detail-header"); const chips = element("div", "chips");
   chips.append(chip(record.dataset, record.dataset.toLowerCase()), chip(record.split), chip(record.role), chip(LANGUAGE_LABELS[record.language] || record.language));
   header.append(chips, element("h2", "", `Episode ${record.episode_id}`), element("p", "", `${record.scene} · ${record.version}`)); detail.append(header);
+  if(record.dataset==='SRDF')detail.append(element('p','hint','SRDF 公开 HM3D round-3 中间版本：下方为离散路标参考路线，不是连续动作或逐帧 GT。SRDF-CE 400k 需作者批准访问并完成适配后才能采集。'));
   const instructionSection = section(); instructionSection.append(element("p", "instruction-label", `导航指令 · ${record.instruction_id}`));
   const instruction = element("p", "instruction", record.instruction || "该样本没有公开指令。"); instruction.lang = record.language; instruction.dir = "auto"; instructionSection.append(instruction);
   if (record.issues.length) instructionSection.append(element("p", "issues", record.issues.map(x => ISSUE_LABELS[x] || x).join(" · ")));
@@ -280,7 +281,7 @@ function renderRoute(record) {
   const heading=element("div","section-heading");
   heading.append(element("h3","","GT 轨迹与场景俯视图"),chip(gt.available ? "数据集评测 GT" : "GT 不可用",gt.available?"keep":""));box.append(heading);
   if(!gt.available){
-    const reason=gt.reason==="test_unpublished" ? `${record.dataset} test 没有公开 GT 和目标。这里仅展示可用的场景底图与起点。` : gt.reason==="start_mismatch" ? "GT 起点与此样本不匹配，已停止关联；请检查数据版本。" : "此样本尚无已接入的 GT。已有稀疏参考路标会单独显示。";
+    const reason=gt.reason==="test_unpublished" ? `${record.dataset} test 没有公开 GT 和目标。这里仅展示可用的场景底图与起点。` : gt.reason==="start_mismatch" ? "GT 起点与此样本不匹配，已停止关联；请检查数据版本。" : gt.reason==="reference_path_only" ? "源数据仅有稀疏参考路标；逐帧 GT 将由实际采集产生。" : "此样本尚无已接入的 GT。已有稀疏参考路标会单独显示。";
     box.append(element("p","issues",reason));
   }
   const allPoints=[...points,...record.reference_path,...record.goals];
@@ -431,6 +432,10 @@ function mediaUrl(id){return apiUrl("media",{id}).href;}
 function gtVideoUrl(id,kind){return apiUrl("gt-video-media",{id,kind}).href;}
 function renderGTVideo(record){
   const box=section("LeRobot GT 视频");box.classList.add("gt-video");
+  if(record.dataset==='SRDF'){
+    box.append(element('p','hint','当前仅接入离散参考路线，尚无连续专家动作、逐帧 GT 或 LeRobot 采集视频。'));
+    return box;
+  }
   const content=element("div");box.append(content);
   const controller=state.detailRequest;
   function current(){return controller===state.detailRequest && record.id===state.selected;}

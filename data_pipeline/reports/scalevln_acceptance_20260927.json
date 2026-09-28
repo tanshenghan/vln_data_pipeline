@@ -1,0 +1,102 @@
+{
+  "date": "2026-09-27",
+  "scope": "ScaleVLN StreamVLN-CE subset, local web collection acceptance with available HM3D scenes",
+  "web_collection_accepted": true,
+  "full_scene_coverage": false,
+  "all_available_routes_replayed": false,
+  "source": {
+    "repository": "cywan/StreamVLN-Trajectory-Data",
+    "revision": "dc61ee9b4e90aa7ba63c1163b2134df5610dccb9",
+    "raw_sha256": {
+      "scalevln_subset_150k.json.gz": "23e31a057858691e239d019a7605c622bfe266aa6e0f9a68ddcdd7830d81abdf",
+      "annotations.json": "2952d8ec63c156e9fed6032217315dfd52c8a6587a8b1af55445633463b4442e"
+    },
+    "prepared_sha256": {
+      "train/train.json.gz": "ca06a4cacff38658db7204dd192450fb92f7ff38334b69eec7bd02b47e55e29a",
+      "train/train_gt.json.gz": "6e5f2ea7883aac8b9258de8f0d44f68f3cdf10e70924bffd5d54e08951dbdb13"
+    },
+    "episodes": 155098,
+    "replay_frames": 7518827,
+    "scenes": 795,
+    "shared_dataset_root": "/home/beta/.local/share/vln-pipeline/datasets/ScaleVLN_StreamVLN",
+    "shared_scene_root": "/home/beta/.local/share/vln-pipeline/scene_datasets/hm3d",
+    "installed_train_scenes": ["00337-CFVBbU9Rsyb", "00770-NBg5UqG3di3"],
+    "scene_ready_episodes": 414,
+    "scope_note": "Complete published 155k continuous subset; not the original 4.9M discrete ScaleVLN release. Only two of its HM3D scenes are installed."
+  },
+  "cli_acceptance": {
+    "episode_id": "25465",
+    "frames": 37,
+    "scene": "00770-NBg5UqG3di3",
+    "complete": true,
+    "directory": "/mnt/nfs/ljqa/vln-pipeline/validation/scalevln-69f98b5d1ffa",
+    "report": "runtime/scalevln_environment_validation.json",
+    "capture_archived_before_independent_readback": true
+  },
+  "web_acceptance": {
+    "run_id": "7d8b117a-e236-4162-8c73-dc6b87f20eba",
+    "url": "http://192.168.110.66:8801/#run/7d8b117a-e236-4162-8c73-dc6b87f20eba",
+    "browser_url_used": "http://127.0.0.1:8801",
+    "started_at": "2026-09-27T15:49:17.271068+00:00",
+    "finished_at": "2026-09-27T15:50:02.871905+00:00",
+    "requested_episode_ids": [],
+    "selected_episode_id": "156815",
+    "source_record_id": "f4269ecb3a428de41a0f7f33",
+    "scene": "00337-CFVBbU9Rsyb",
+    "frames": 62,
+    "status": "succeeded",
+    "attempts": 1,
+    "actual_browser_start_button_clicked": true,
+    "browser_errors": [],
+    "video_playback": true,
+    "produced_catalog_binding_verified": true,
+    "atlas_lazy_video_render_ready": true,
+    "atlas_video_range_http_status": 206,
+    "source_geometry_is_reference_path_only": true,
+    "evidence": "test-results/scalevln-web-20260927-final/evidence.json",
+    "screenshot": "test-results/scalevln-web-20260927-final/completed.png",
+    "dataset": "/mnt/nfs/ljqa/vln-pipeline/runs/7d8b117a-e236-4162-8c73-dc6b87f20eba/dataset",
+    "goal_distance_m": 0.15799202024936676,
+    "max_reference_polyline_deviation_m": 0.18212329385075068,
+    "validation": {
+      "complete": true,
+      "self_contained": true,
+      "official_loader_all_frames": true,
+      "dataloader_batch": true,
+      "rgb_depth_hashes_exact": true,
+      "all_30_source_arrays_exact": true,
+      "geometry_recomputed": true,
+      "finite_masked_stats": true,
+      "source_comparison": false
+    },
+    "readback_note": "Original capture path was archived before independent validation; source_comparison=false does not mean the self-contained geometry/hash checks were skipped."
+  },
+  "recovery_check": {
+    "run_id": "9c85188a-f049-4a4e-937a-878071ff32ee",
+    "initial_issue": "Legacy video index rejected the HM3D .basis scene-name suffix after successful collection/export/validation.",
+    "resolution": "Added narrowly validated ScaleVLN scene identity support and traversal regression tests; retried through normal API.",
+    "final_status": "succeeded",
+    "run_attempts": 2,
+    "each_collection_export_validation_stage_attempts": 1,
+    "original_artifacts_preserved": true
+  },
+  "regression": {
+    "platform_python_passed": 225,
+    "platform_subtests_passed": 27,
+    "data_pipeline_python_passed": 157,
+    "web_node_passed": 19,
+    "git_diff_check": true,
+    "gt_test_scope": "Existing Makefile test-gt scope; excludes historical test_rollout_lightnav.py which needs absent upstream lightnav.habitat.",
+    "http_preflight_rejected_with_422": ["missing_scene", "count_exceeds_414", "unsupported_split", "unsupported_full_dataset"],
+    "server_side_http_health_200": ["http://192.168.110.66:8801", "http://192.168.66.2:8801"],
+    "network_note": "LAN/VPN address checks originated on the workstation; not an independent remote-client connectivity test."
+  },
+  "limits": [
+    "train / guide / all-language-filter / local execution only; instructions are English",
+    "Default selection uses available scene assets; 414 routes are asset-ready, not all individually validated",
+    "Each replay still fails closed on route deviation or goal distance >= 0.5 metres",
+    "HM3D full scene authorization/download remains separate from trajectory repository authorization",
+    "No mentor service restart, branch merge, commit, push, or dataset release was performed",
+    "VLNVerse remains deferred; EVT-Bench is not part of this acceptance"
+  ]
+}

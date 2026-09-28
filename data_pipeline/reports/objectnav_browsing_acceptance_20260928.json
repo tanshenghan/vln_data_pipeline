@@ -1,0 +1,57 @@
+{
+  "date": "2026-09-28",
+  "scope": "Official ObjectNav annotation installation and native read-only web browsing",
+  "source_root": "/home/beta/.local/share/vln-pipeline",
+  "web_url": "http://192.168.110.66:8801/#objectnav",
+  "native_annotations_verified": true,
+  "read_only_browser_acceptance": true,
+  "trajectory_generation_implemented": false,
+  "gt_collection_accepted": false,
+  "full_hm3d_installation_complete_at_report_time": false,
+  "datasets": {
+    "mp3d_objectnav_v1": {
+      "train": {"episodes": 2632422, "scenes": 56},
+      "val": {"episodes": 2195, "scenes": 11}
+    },
+    "hm3d_objectnav_v1": {
+      "semantic_version": "HM3DSem v0.1",
+      "geometry_version": "HM3D v0.1; separate from v0.2",
+      "train": {"episodes": 3971566, "scenes": 80},
+      "val": {"episodes": 2000, "scenes": 20},
+      "val_mini": {"episodes": 30, "scenes": 2, "subset_not_added_to_total": true}
+    },
+    "hm3d_objectnav_v2": {
+      "semantic_version": "HM3DSem v0.2",
+      "geometry_version": "HM3D v0.2",
+      "train": {"episodes": 7196434, "scenes": 145},
+      "val": {"episodes": 1000, "scenes": 36},
+      "val_mini": {"episodes": 30, "scenes": 2, "subset_not_added_to_total": true}
+    }
+  },
+  "browser_checks": {
+    "all_three_versions": true,
+    "all_native_splits_api": true,
+    "category_filter": true,
+    "pagination": true,
+    "native_goal_and_source_detail": true,
+    "write_requests": 0,
+    "javascript_errors": 0,
+    "production_run_ids_unchanged": true,
+    "evidence": "test-results/objectnav-web-20260928-final/evidence.json"
+  },
+  "regression": {
+    "platform_and_catalog_python_passed": 234,
+    "pipeline_python_passed": 197,
+    "node_passed": 19,
+    "total_passed": 450,
+    "pipeline_scope": "Makefile test-gt; historical test_rollout_lightnav.py excluded by the existing target",
+    "notes": "Existing dependency deprecation warnings; no environment packages changed. Platform tests used an isolated temporary SQLite database."
+  },
+  "background_services": [
+    "vln-habitat-assets-download.service",
+    "vln-habitat-legacy-download.service",
+    "vln-habitat-assets-install.service"
+  ],
+  "live_asset_status": "/home/beta/.local/share/vln-pipeline/installation_manifests/habitat/status.json",
+  "provenance": "Each installed official archive has an installed.json file containing its source URL, archive hash and individual asset hashes. No private credential values are included."
+}

@@ -1,18 +1,49 @@
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const state={health:null,runs:[],sources:[],offset:0,selected:new Set(),run:null};
-const statusName={queued:'等待执行',running:'运行中',succeeded:'已完成',failed:'失败',paused:'已暂停',cancelled:'已取消'};
+const statusName={queued:'等待执行',waiting:'等待空闲',running:'运行中',succeeded:'已完成',failed:'失败',paused:'已暂停',cancelled:'已取消'};
 const badge=s=>`<span class="status ${esc(s)}">${statusName[s]||esc(s)}</span>`;
 const date=s=>new Date(s).toLocaleString('zh-CN',{hour12:false});
 function notice(s){$('#pipeline-notice').textContent=s;$('#pipeline-notice').hidden=false;clearTimeout(notice.timer);notice.timer=setTimeout(()=>$('#pipeline-notice').hidden=true,7000)}
 async function api(path,options={}){const r=await fetch('/api'+path,{...options,headers:{'Content-Type':'application/json',...options.headers}});const data=await r.json();if(!r.ok)throw Error(typeof data.detail==='string'?data.detail:JSON.stringify(data.detail||data));return data}
 function download(data,name){const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-function runTable(rows){return rows.length?`<table><thead><tr><th>任务</th><th>管线</th><th>状态 / 阶段</th><th>创建时间</th><th></th></tr></thead><tbody>${rows.map(r=>`<tr><td><a href="#run/${r.id}">${esc(r.name)}</a><small>${esc(r.id.slice(0,8))}</small></td><td>${r.kind==='gt'?'GT 采集':r.config.operation==='preview'?'Prompt 预览':'Seedance'}</td><td>${badge(r.status)}<small>${esc(r.stage)}</small></td><td>${date(r.created_at)}</td><td><a href="#run/${r.id}">详情 →</a></td></tr>`).join('')}</tbody></table>`:'<div class="empty">暂无任务 · 从 GT 采集或 Seedance 页面开始</div>'}
-async function refresh(){try{const [h,r]=await Promise.all([api('/health'),api('/runs')]);state.health=h;state.runs=r;$('#service').textContent=h.ready?'● 工作站采集就绪':'○ 工作站准备中';$('#gt-ready').textContent=h.ready?'采集链路已就绪，点击即可在工作站运行。':'尚未就绪：'+Object.entries(h.checks).filter(([k,v])=>!v).map(([k])=>k).join('、');updateGtReadiness();updateSceneCaptureButtons();$('#checks').innerHTML=Object.entries(h.checks).map(([k,v])=>`<span class="check ${v?'':'no'}">${v?'✓':'○'} ${esc(k)}</span>`).join('');$('#configured-gpu').textContent=`GPU ${h.gpu_id} · 工作站已配置`;$('#gpu').textContent=`GPU：${h.gpu} · 存储可用 ${h.free_gb} GB`;$('#stats').innerHTML=[['生产任务',r.length],['正在运行',r.filter(x=>x.status==='running').length],['已完成',r.filter(x=>x.status==='succeeded').length],['需要检查',r.filter(x=>x.status==='failed').length],['生成估算费用（非账单）',Number(h.generation_cost?.estimated_cny||0).toFixed(4)+' 元']].map(([k,v])=>`<div class="stat"><span>${k}</span><strong>${v}</strong></div>`).join('');$('#recent').innerHTML=runTable(r.slice(0,5));$('#run-table').innerHTML=runTable(r);if(location.hash.startsWith('#run/'))await loadRun(location.hash.slice(5),true)}catch(e){$('#service').textContent='连接暂不可用';console.error(e)}}
-async function loadSources(){const p=new URLSearchParams({q:$('#search').value,dataset:$('#filter-dataset').value,split:$('#filter-split').value,limit:30,offset:state.offset});try{const data=await api('/sources?'+p);state.sources=data.items;state.selected.clear();$('#source-count').textContent=`${data.stats.records.toLocaleString()} 条指令 · ${data.stats.scenes||0} 个场景`;$('#source-table').innerHTML=`<table><thead><tr><th></th><th>来源</th><th>指令</th><th>场景 / 语言</th></tr></thead><tbody>${data.items.map(r=>`<tr><td><input type="checkbox" data-source="${esc(r.id)}" aria-label="选择 episode ${esc(r.episode_id)}"></td><td>${esc(r.dataset)} / ${esc(r.episode_id)}<small>${esc(r.split)} · ${esc(r.role)}</small></td><td class="instruction">${esc(r.instruction)}</td><td>${esc(r.scene)}<small>${esc(r.language)}</small></td></tr>`).join('')}</tbody></table>`;$('#page-num').textContent=`第 ${state.offset/30+1} 页`;$('#source-prev').disabled=state.offset===0;$('#source-next').disabled=state.offset+30>=data.stats.records;$$('[data-source]').forEach(e=>e.addEventListener('change',()=>e.checked?state.selected.add(e.dataset.source):state.selected.delete(e.dataset.source)))}catch(e){notice(e.message)}}
-function selectedTo(kind){const rows=state.sources.filter(r=>state.selected.has(r.id));if(!rows.length)return notice('请先选择样本');if(new Set(rows.map(r=>[r.dataset,r.split,r.role].join(':'))).size>1)return notice('请选取同一数据集、split 和角色的样本');if(kind==='seedance'&&rows[0].dataset==='VLNVerse')return notice('VLNVerse 当前支持场景浏览与 GT 采集');if(rows[0].split==='test'&&rows[0].dataset!=='VLNVerse')return notice('test 未公开 GT，不能发起专家回放采集');const f=$('#'+(kind==='gt'?'gt':'seedance')+'-form');f.elements.source_dataset.value=rows[0].dataset.toLowerCase();if(f.elements.split)f.elements.split.value=rows[0].split;if(f.elements.role)f.elements.role.value=rows[0].role;f.elements.episode_ids.value=rows.map(r=>r.episode_id).join(',');f.elements.count.value=rows.length;delete f.dataset.previewId;f.dataset.sourceIds=JSON.stringify(rows.map(r=>r.id));f.dataset.sourceSplit=rows[0].split;f.dataset.sourceRole=rows[0].role;location.hash=kind;if(kind==='gt')updateGtReadiness()}
-function formPayload(f,kind){const d=new FormData(f);return {kind,name:d.get('name')||'',dataset:d.get('source_dataset'),split:d.get('split')||f.dataset.sourceSplit||'train',role:d.get('role')||f.dataset.sourceRole||'guide',languages:[d.get('language')||'all'],count:Number(d.get('count')||1),episode_ids:String(d.get('episode_ids')||'').split(/[,，\s]+/).filter(Boolean),source_ids:JSON.parse(f.dataset.sourceIds||'[]'),full_dataset:d.has('full_dataset'),routes_per_shard:Number(d.get('routes_per_shard')||8),workers:Number(d.get('workers')||1),lightnav_max_steps:Number(d.get('lightnav_max_steps')||500),duration:Number(d.get('duration')||15),instruction:d.get('instruction')||'',operation:'generate',preview_id:kind==='seedance'?(f.dataset.previewId||null):null}}
-for(const kind of ['gt','seedance'])$('#'+kind+'-form').addEventListener('submit',async e=>{e.preventDefault();const f=e.currentTarget,b=f.querySelector('[type=submit]');b.disabled=true;try{const payload=formPayload(f,kind);const encoded=JSON.stringify(payload);if(f.dataset.lastPayload!==encoded){f.dataset.requestKey=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');f.dataset.lastPayload=encoded}const r=await api('/runs',{method:'POST',headers:{'Idempotency-Key':f.dataset.requestKey},body:encoded});notice('任务已提交，工作站将自动执行');location.hash='run/'+r.id;await refresh()}catch(e){notice(e.message)}finally{b.disabled=false}});
+function runTable(rows){return rows.length?`<table><thead><tr><th>任务</th><th>管线</th><th>状态 / 阶段</th><th>创建时间</th><th></th></tr></thead><tbody>${rows.map(r=>`<tr><td><a href="#run/${r.id}">${esc(r.name)}</a><small>${esc(r.id.slice(0,8))}</small></td><td>${r.kind==='gt'?'GT 采集':r.config.operation==='preview'?'Prompt 预览':'Seedance'}${r.kind==='gt'?`<small>${esc(runComputeName(r))}</small>`:''}</td><td>${badge(r.status)}<small>${esc(r.stage)}</small></td><td>${date(r.created_at)}</td><td><a href="#run/${r.id}">详情 →</a></td></tr>`).join('')}</tbody></table>`:'<div class="empty">暂无任务 · 从 GT 采集或 Seedance 页面开始</div>'}
+async function refresh(){try{const [h,r,c,plans]=await Promise.all([api('/health'),api('/runs'),api('/compute-pools').catch(()=>({pools:[],ready:false})),api('/collection-plans')]);state.health=h;state.runs=r;state.compute=c;state.plans=plans;renderCollectionPlans();updateComputePools();$('#service').textContent=h.ready?'● 工作站采集就绪':'○ 工作站准备中';$('#gt-ready').textContent=h.ready?'采集链路已就绪，点击即可在工作站运行。':'尚未就绪：'+Object.entries(h.checks).filter(([k,v])=>!v).map(([k])=>k).join('、');updateGtReadiness();updateSceneCaptureButtons();$('#checks').innerHTML=Object.entries(h.checks).map(([k,v])=>`<span class="check ${v?'':'no'}">${v?'✓':'○'} ${esc(k)}</span>`).join('');$('#gpu').textContent=`GPU：${h.gpu} · 存储可用 ${h.free_gb} GB`;$('#stats').innerHTML=[['生产任务',r.length],['正在运行',r.filter(x=>x.status==='running').length],['已完成',r.filter(x=>x.status==='succeeded').length],['需要检查',r.filter(x=>x.status==='failed').length],['生成估算费用（非账单）',Number(h.generation_cost?.estimated_cny||0).toFixed(4)+' 元']].map(([k,v])=>`<div class="stat"><span>${k}</span><strong>${v}</strong></div>`).join('');$('#recent').innerHTML=runTable(r.slice(0,5));$('#run-table').innerHTML=runTable(r);if(location.hash.startsWith('#run/'))await loadRun(location.hash.slice(5),true)}catch(e){$('#service').textContent='连接暂不可用';console.error(e)}}
+async function loadSources(){const p=new URLSearchParams({q:$('#search').value,dataset:$('#filter-dataset').value,split:$('#filter-split').value,limit:30,offset:state.offset});try{const data=await api('/sources?'+p);state.sources=data.items;state.selected.clear();$('#source-count').textContent=`${data.stats.records.toLocaleString()} 条指令 · ${data.stats.scenes||0} 个场景`;$('#source-table').innerHTML=`<table><thead><tr><th></th><th>来源</th><th>指令</th><th>场景 / 语言</th></tr></thead><tbody>${data.items.map(r=>`<tr><td><input type="checkbox" data-source="${esc(r.id)}" aria-label="选择 episode ${esc(r.episode_id)}"></td><td>${esc(r.dataset)} / ${esc(r.episode_id)}<small>${esc(r.split)} · ${esc(r.role)}${r.dataset==='SRDF'?' · 离散参考路线，非逐帧 GT':''}</small></td><td class="instruction">${esc(r.instruction)}</td><td>${esc(r.scene)}<small>${esc(r.language)}${r.dataset==='ScaleVLN'?(r.scene_ready?' · 场景已就绪':' · 场景未下载'):''}</small></td></tr>`).join('')}</tbody></table>`;$('#page-num').textContent=`第 ${state.offset/30+1} 页`;$('#source-prev').disabled=state.offset===0;$('#source-next').disabled=state.offset+30>=data.stats.records;$$('[data-source]').forEach(e=>e.addEventListener('change',()=>e.checked?state.selected.add(e.dataset.source):state.selected.delete(e.dataset.source)))}catch(e){notice(e.message)}}
+function selectedTo(kind){const rows=state.sources.filter(r=>state.selected.has(r.id));if(!rows.length)return notice('请先选择样本');if(new Set(rows.map(r=>[r.dataset,r.split,r.role].join(':'))).size>1)return notice('请选取同一数据集、split 和角色的样本');if(kind==='seedance'&&['VLNVerse','ScaleVLN','SRDF'].includes(rows[0].dataset))return notice('该数据集当前仅支持 GT 采集');if(rows[0].split==='test'&&rows[0].dataset!=='VLNVerse')return notice('test 未公开 GT，不能发起专家回放采集');const f=$('#'+(kind==='gt'?'gt':'seedance')+'-form');f.elements.source_dataset.value=rows[0].dataset.toLowerCase();if(f.elements.split)f.elements.split.value=rows[0].split;if(f.elements.role)f.elements.role.value=rows[0].role;f.elements.episode_ids.value=rows.map(r=>r.episode_id).join(',');f.elements.count.value=rows.length;delete f.dataset.previewId;f.dataset.sourceIds=JSON.stringify(rows.map(r=>r.id));f.dataset.sourceSplit=rows[0].split;f.dataset.sourceRole=rows[0].role;location.hash=kind;if(kind==='gt'){updateGtOptions();updateGtReadiness()}}
+function formPayload(f,kind){const d=new FormData(f),target=kind==='gt'?(selectedDevices()[0]||'local'):'local';return {kind,execution:target==='local'?'local':'cloud_idle',compute_pool:target==='local'?'auto':target,name:d.get('name')||'',dataset:d.get('source_dataset'),split:d.get('split')||f.dataset.sourceSplit||'train',role:d.get('role')||f.dataset.sourceRole||'guide',languages:[d.get('language')||'all'],count:Number(d.get('count')||1),episode_ids:String(d.get('episode_ids')||'').split(/[,，\s]+/).filter(Boolean),source_ids:JSON.parse(f.dataset.sourceIds||'[]'),full_dataset:d.has('full_dataset'),routes_per_shard:Number(d.get('routes_per_shard')||8),workers:Number(d.get('workers')||1),lightnav_max_steps:Number(d.get('lightnav_max_steps')||500),duration:Number(d.get('duration')||15),instruction:d.get('instruction')||'',operation:'generate',preview_id:kind==='seedance'?(f.dataset.previewId||null):null}}
+function collectionRequest(form,kind){
+ const payload=formPayload(form,kind),devices=selectedDevices();
+ if(payload.dataset==='srdf')throw new Error(state.health?.srdf?.collection_reason||'SRDF 连续轨迹尚未就绪，当前仅支持源数据浏览。');
+ const continuous=kind==='gt'&&form.elements.collection_mode.value==='continuous';
+ if(continuous&&!['r2r','rxr','scalevln'].includes(payload.dataset))throw new Error('该数据集暂不支持持续采集');
+ if(kind==='gt'&&!continuous&&devices.length>1)throw new Error('自定义数量请只选择一台设备；多设备请使用持续采集');
+ if(continuous){
+  const execution=devices.includes('local')?(devices.length>1?'mixed':'local'):'cloud_idle';
+  const pools=devices.flatMap(id=>id==='volc-h20'?devicePools(id).filter(p=>p.enabled).map(p=>p.id):[id]);
+  return {continuous:true,path:'/collection-plans',payload:{...payload,execution,count:1,full_dataset:false,compute_pool:'auto',compute_pools:pools}};
+ }
+ return {continuous:false,path:'/runs',payload};
+}
+for(const kind of ['gt','seedance'])$('#'+kind+'-form').addEventListener('submit',async e=>{
+ e.preventDefault();const f=e.currentTarget,b=f.querySelector('[type=submit]');b.disabled=true;
+ try{
+  const request=collectionRequest(f,kind),encoded=JSON.stringify(request.payload);
+  if(f.dataset.lastPayload!==encoded){f.dataset.requestKey=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');f.dataset.lastPayload=encoded;}
+  const r=await api(request.path,{method:'POST',headers:{'Idempotency-Key':f.dataset.requestKey},body:encoded});
+  notice(request.continuous?'持续采集已启用，所选设备空闲后自动领取批次':request.payload.execution==='cloud_idle'?'任务已保存，云端资源空闲后自动采集':'任务已提交，工作站将自动执行');
+  location.hash=request.continuous?'gt':'run/'+r.id;await refresh();
+  if(request.continuous)$('#collection-plans').scrollIntoView({behavior:'smooth',block:'start'});
+ }catch(e){notice(e.message)}finally{if(kind==='gt')updateGtReadiness();else b.disabled=false;}
+});
+function renderCollectionPlans(){
+ const names={waiting:'等待空闲 / 就绪',running:'持续采集中',watching:'本轮采完，等待新增',paused:'已暂停',cancelled:'已停止',needs_attention:'需要检查'};
+ $('#collection-plan-list').innerHTML=(state.plans||[]).map(p=>`<article class="collection-plan"><div class="run-head"><div><h4>${esc(p.name)}</h4><p>${esc([...new Set(p.compute_pools.map(computeName))].join(' + '))} · ${esc(names[p.status]||p.status)}</p></div><div class="run-actions">${p.control==='run'?'<button data-plan-action="pause" data-plan="'+esc(p.id)+'">暂停计划</button>':''}${p.control!=='cancel'&&(p.control==='pause'||p.status==='needs_attention')?'<button data-plan-action="retry" data-plan="'+esc(p.id)+'">继续 / 重试</button>':''}${p.control!=='cancel'?'<button data-plan-action="cancel" data-plan="'+esc(p.id)+'">停止计划</button>':''}</div></div><p class="muted">${esc(p.config.dataset.toUpperCase())} / ${esc(p.config.split)} / ${esc(p.config.role)} · ${esc(p.config.languages.join(', '))} · 范围 ${p.progress.total??'—'} 条 · 已完成 ${p.progress.completed??0} 条 · 待领取 ${p.progress.remaining??'—'} 条</p>${p.error?'<p class="error">'+esc(p.error)+'</p>':''}<p class="muted">${[...new Set(p.compute_pools.map(computeDevice))].map(id=>esc(computeName(id)+'：'+computeStatus(id,p.config.dataset,p.compute_pools))).join(' · ')}</p>${p.batches?.length?'<details><summary>最近采集批次</summary>'+p.batches.map(b=>'<p><a href="#run/'+esc(b.id)+'">'+esc(computeName(b.compute_pool))+' · '+esc(b.id.slice(0,8))+'</a> '+badge(b.status)+'</p>').join('')+'</details>':''}</article>`).join('')||'<p class="muted">采集数量选择“持续采集”，再选择 GPU0 或云端设备即可启用。</p>';
+}
+$('#collection-plan-list').addEventListener('click',async e=>{
+ const b=e.target.closest('[data-plan-action]');if(!b)return;b.disabled=true;
+ try{await api('/collection-plans/'+b.dataset.plan+'/'+b.dataset.planAction,{method:'POST'});notice(b.dataset.planAction==='pause'?'已暂停计划，正在释放采集资源':b.dataset.planAction==='cancel'?'已停止计划，已有产物保留':'已恢复持续采集');await refresh();}catch(e){notice(e.message);b.disabled=false;}
+});
 function generationPanel(r){
  if(r.kind!=='seedance')return '';
  const report=r.generation||{},usage=report.usage||{};
@@ -50,7 +81,7 @@ function trajectoryReviewPanel(r){
      ${file?`<a href="/api/artifacts/${encodeURIComponent(file.id)}?download=true">下载此条审核报告</a>`:''}</section>`;
  }).join('')}</article>`;
 }
-async function loadRun(id,quiet=false){try{const r=await api('/runs/'+id);state.run=r;const content=$('#run-content');const active=document.activeElement;const editing=quiet&&active&&content.contains(active)&&['INPUT','TEXTAREA','SELECT'].includes(active.tagName);if(editing||(quiet&&[...content.querySelectorAll('video')].some(v=>!v.paused)))return;const expandedReviews=new Set([...content.querySelectorAll('details[data-review-key][open]')].map(d=>d.dataset.reviewKey));const oldVideos=new Map([...content.querySelectorAll('video')].map(v=>[v.src,{time:v.currentTime,paused:v.paused}]));const videos=r.artifacts.filter(a=>a.kind==='video'&&(r.kind!=='seedance'||a.name==='video.mp4'));const files=r.artifacts.filter(a=>a.kind!=='video');content.innerHTML=`<div class="run-head"><div><h2>${esc(r.name)}</h2>${badge(r.status)} <span class="muted">${date(r.created_at)} · ${esc(r.stage)}</span></div><div class="run-actions">${['running','queued'].includes(r.status)?`<button data-action="pause">暂停</button><button data-action="cancel">${r.kind==='seedance'?'停止本地执行':'取消'}</button>`:''}${['failed','paused'].includes(r.status)?'<button data-action="retry" class="primary">续跑 / 重试</button>':''}<a class="button" href="/api/runs/${r.id}/manifest">下载清单</a></div></div>${r.error?`<p class="error">${esc(r.error)}</p>`:''}${r.control==='pause'&&r.status==='running'?`<p>${r.config.full_dataset?'暂停已请求，停止派发新分片，等待已运行分片完成。':'暂停已请求，将在当前阶段完成后生效。'}</p>`:''}<article><h3>执行阶段</h3>${r.stages.map(s=>`<span class="stage ${s.complete?'done':''}">${s.complete?'✓':'○'} ${esc(s.name)} <small>×${s.attempts}</small></span>`).join('')||'<p class="muted">等待工作站执行</p>'}<p class="muted">${esc(JSON.stringify(r.progress))}</p></article><details ${r.status==='running'||r.status==='failed'?'open':''}><summary>查看实际执行日志</summary><pre class="log" id="run-log">加载中…</pre></details>${r.kind==='seedance'?'<div class="form-note"><b>估计轨迹，非 GT</b><p>深度、可信标定、真实机体位姿和四类监督：未提供。保留生成原始产物。</p></div>':''}${r.kind==='seedance'?`<p class="muted">${esc(r.generation?.cancellation||'停止本地执行不会取消已提交的云端生成。')}</p><p class="muted">供应商任务：${(r.generation?.provider_tasks||[]).map(t=>esc(t.task_id||'提交结果待核对')).join('、')||'尚未提交'}</p>`:''}${generationPanel(r)}${trajectoryReviewPanel(r)}<article><h3>产物与校验报告</h3><div class="artifact-list">${videos.map(a=>`<div class="artifact"><a href="/api/artifacts/${a.id}" target="_blank">${esc(a.name)}</a><video controls preload="metadata" src="/api/artifacts/${a.id}"></video></div>`).join('')}</div>${files.length?`<details><summary>查看 ${files.length} 个数据 / 报告文件</summary>${files.map(a=>`<p><a href="/api/artifacts/${a.id}${['dataset','capture'].includes(a.kind)?'?archive=tar':'?download=true'}" target="_blank">${esc(a.name)}${['dataset','capture'].includes(a.kind)?'（打包下载）':''}</a> <span class="muted">${esc(a.kind)}</span></p>`).join('')}</details>`:'<p class="muted">产物将在实际完成并登记后出现。</p>'}</article><article style="margin-top:20px">${r.config.dataset==='vlnverse'?'<h3>数据发布</h3><p class="muted">GT 通过后可直接发布，无需人工审核。</p>':`<h3>人工审核与发布</h3><p class="muted">这里保存人工保留、排除或待复核的决定。VLM 自动结论见上方审核结果。</p><form id="review-form" class="review-form"><select name="decision"><option value="keep">保留</option><option value="review">待复核</option><option value="exclude">排除</option></select><input name="note" placeholder="审核备注"><button>保存人工审核</button></form>${r.reviews.map(x=>`<p class="muted">${date(x.created_at)} · ${esc(x.decision)} · ${esc(x.note)}</p>`).join('')}`}${r.release?`<p>已发布版本：${esc(r.release.id)}</p>`:`<button id="publish" ${r.status!=='succeeded'||(r.trajectory_review&&r.trajectory_review.accepted===0)?'disabled':''}>发布数据版本</button>`}</article>`;
+async function loadRun(id,quiet=false){try{const r=await api('/runs/'+id);state.run=r;const content=$('#run-content');const active=document.activeElement;const editing=quiet&&active&&content.contains(active)&&['INPUT','TEXTAREA','SELECT'].includes(active.tagName);if(editing||(quiet&&[...content.querySelectorAll('video')].some(v=>!v.paused)))return;const expandedReviews=new Set([...content.querySelectorAll('details[data-review-key][open]')].map(d=>d.dataset.reviewKey));const oldVideos=new Map([...content.querySelectorAll('video')].map(v=>[v.src,{time:v.currentTime,paused:v.paused}]));const videos=r.artifacts.filter(a=>a.kind==='video'&&(r.kind!=='seedance'||a.name==='video.mp4'));const files=r.artifacts.filter(a=>a.kind!=='video');content.innerHTML=`<div class="run-head"><div><h2>${esc(r.name)}</h2>${badge(r.status)} <span class="muted">${date(r.created_at)} · ${esc(r.stage)}</span></div><div class="run-actions">${['running','queued','waiting'].includes(r.status)?`<button data-action="pause">暂停</button><button data-action="cancel">${r.kind==='seedance'?'停止本地执行':'取消'}</button>`:''}${['failed','paused'].includes(r.status)?'<button data-action="retry" class="primary">续跑 / 重试</button>':''}<a class="button" href="/api/runs/${r.id}/manifest">下载清单</a></div></div>${r.config.execution==='cloud_idle'?`<p class="form-note">采集方式：${esc(runComputeName(r))} · ${r.cloud?.job_id?'云任务 '+esc(r.cloud.job_id):'等待空闲资源'}<br>自动让位后会续跑；手动暂停后保持暂停。</p>`:r.kind==='gt'?`<p class="muted">采集方式：${esc(runComputeName(r))}</p>`:''}${r.error?`<p class="error">${esc(r.error)}</p>`:''}${r.control==='pause'&&r.status==='running'?`<p>${r.config.execution==='cloud_idle'?'正在停止云任务并释放 GPU，已完成分片保留。':r.config.full_dataset?'暂停已请求，停止派发新分片，等待已运行分片完成。':'暂停已请求，将在当前阶段完成后生效。'}</p>`:''}<article><h3>执行阶段</h3>${r.stages.map(s=>`<span class="stage ${s.complete?'done':''}">${s.complete?'✓':'○'} ${esc(s.name)} <small>×${s.attempts}</small></span>`).join('')||`<p class="muted">${r.kind==='gt'?'等待 '+esc(runComputeName(r))+' 执行':'等待工作站执行'}</p>`}<p class="muted">${esc(JSON.stringify(r.progress))}</p></article><details ${r.status==='running'||r.status==='failed'?'open':''}><summary>查看实际执行日志</summary><pre class="log" id="run-log">加载中…</pre></details>${r.kind==='seedance'?'<div class="form-note"><b>估计轨迹，非 GT</b><p>深度、可信标定、真实机体位姿和四类监督：未提供。保留生成原始产物。</p></div>':''}${r.kind==='seedance'?`<p class="muted">${esc(r.generation?.cancellation||'停止本地执行不会取消已提交的云端生成。')}</p><p class="muted">供应商任务：${(r.generation?.provider_tasks||[]).map(t=>esc(t.task_id||'提交结果待核对')).join('、')||'尚未提交'}</p>`:''}${generationPanel(r)}${trajectoryReviewPanel(r)}<article><h3>产物与校验报告</h3><div class="artifact-list">${videos.map(a=>`<div class="artifact"><a href="/api/artifacts/${a.id}" target="_blank">${esc(a.name)}</a><video controls preload="metadata" src="/api/artifacts/${a.id}"></video></div>`).join('')}</div>${files.length?`<details><summary>查看 ${files.length} 个数据 / 报告文件</summary>${files.map(a=>`<p><a href="/api/artifacts/${a.id}${['dataset','capture'].includes(a.kind)?'?archive=tar':'?download=true'}" target="_blank">${esc(a.name)}${['dataset','capture'].includes(a.kind)?'（打包下载）':''}</a> <span class="muted">${esc(a.kind)}</span></p>`).join('')}</details>`:'<p class="muted">产物将在实际完成并登记后出现。</p>'}</article><article style="margin-top:20px">${r.config.dataset==='vlnverse'?'<h3>数据发布</h3><p class="muted">GT 通过后可直接发布，无需人工审核。</p>':`<h3>人工审核与发布</h3><p class="muted">这里保存人工保留、排除或待复核的决定。VLM 自动结论见上方审核结果。</p><form id="review-form" class="review-form"><select name="decision"><option value="keep">保留</option><option value="review">待复核</option><option value="exclude">排除</option></select><input name="note" placeholder="审核备注"><button>保存人工审核</button></form>${r.reviews.map(x=>`<p class="muted">${date(x.created_at)} · ${esc(x.decision)} · ${esc(x.note)}</p>`).join('')}`}${r.release?`<p>已发布版本：${esc(r.release.id)}</p>`:`<button id="publish" ${r.status!=='succeeded'||(r.trajectory_review&&r.trajectory_review.accepted===0)?'disabled':''}>发布数据版本</button>`}</article>`;
 content.querySelectorAll('details[data-review-key]').forEach(d=>{d.open=expandedReviews.has(d.dataset.reviewKey)});
 if($('#use-preview'))$('#use-preview').onclick=()=>usePreview(r);
 content.querySelectorAll('video').forEach(v=>{const old=oldVideos.get(v.src);if(old){v.currentTime=old.time;if(!old.paused)v.play().catch(()=>{})}});
@@ -74,7 +105,7 @@ $('#preview-prompts').onclick=async()=>{
   location.hash='run/'+r.id;await refresh();
  }catch(e){notice(e.message)}finally{button.disabled=false}
 };
-const titles={scenes:'场景库',overview:'生产总览',data:'数据中心',gt:'GT 轨迹采集',seedance:'Seedance 视频生成',runs:'任务与审核',atlas:'场景与 GT 浏览','run-detail':'任务详情'};
+const titles={objectnav:'ObjectNav 数据浏览',scenes:'场景库',overview:'生产总览',data:'数据中心',gt:'GT 轨迹采集',seedance:'Seedance 视频生成',runs:'任务与审核',atlas:'场景与 GT 浏览','run-detail':'任务详情'};
 async function route(){
   const hash=location.hash.slice(1)||'atlas';
   const page=hash.startsWith('run/')?'run-detail':hash.startsWith('scenes/')?'scenes':(titles[hash]?hash:'atlas');
@@ -98,6 +129,9 @@ window.addEventListener('vln:record-selected',e=>{
   const actions=document.createElement('div');actions.className='source-pipeline-actions';
   for(const [kind,label] of [['gt','采集此样本 GT'],['seedance','用此样本生成视频']]){
     const button=document.createElement('button');button.type='button';button.textContent=label;
+    if(record.dataset==='SRDF'){
+      button.disabled=true;button.title='SRDF 当前仅有离散参考路线；连续采集尚未接通。';
+    }
     button.addEventListener('click',()=>{state.sources=[record];state.selected=new Set([record.id]);selectedTo(kind)});
     actions.append(button);
   }
@@ -117,7 +151,12 @@ for(const kind of ['gt','seedance']){
 }
 $('#search-button').onclick=()=>{state.offset=0;loadSources()};$('#search').onkeydown=e=>{if(e.key==='Enter')$('#search-button').click()};$('#source-prev').onclick=()=>{state.offset=Math.max(0,state.offset-30);loadSources()};$('#source-next').onclick=()=>{state.offset+=30;loadSources()};$('#source-gt').onclick=()=>selectedTo('gt');$('#source-video').onclick=()=>selectedTo('seedance');$('#export-sources').onclick=()=>download(state.sources,'vln-source-manifest.json');$('#refresh-runs').onclick=refresh;window.addEventListener('hashchange',route);route();refresh();setInterval(refresh,5000);
 
-$('#check-capacity').onclick=async()=>{const button=$('#check-capacity');button.disabled=true;$('#gt-capacity').textContent='正在检查源数据与所需空间…';try{const p=await api('/preflight',{method:'POST',body:JSON.stringify(formPayload($('#gt-form'),'gt'))});$('#gt-capacity').textContent=`${p.episodes} 个 episode · ${p.frames} 帧 · ${p.scenes} 个场景 · 保守峰值预算 ${p.estimated_peak_gb} GiB / 可用 ${p.free_gb} GiB。${p.basis}`}catch(e){$('#gt-capacity').textContent=e.message}finally{button.disabled=false}};
+$('#check-capacity').onclick=async()=>{
+ const button=$('#check-capacity');button.disabled=true;$('#gt-capacity').textContent='正在检查源数据与所需空间…';
+ try{const request=collectionRequest($('#gt-form'),'gt');const p=await api(request.continuous?'/collection-plans/preflight':'/preflight',{method:'POST',body:JSON.stringify(request.payload)});
+ $('#gt-capacity').textContent=request.continuous?`${p.episodes} 条源轨迹 · 已完成 ${p.completed} 条 · 待领取 ${p.remaining} 条 · 每批最多 ${p.batch_size} 条。${p.basis}`:`${p.episodes} 个 episode · ${p.frames} 帧 · ${p.scenes} 个场景 · 保守峰值预算 ${p.estimated_peak_gb} GiB / 可用 ${p.free_gb} GiB。${p.basis}`;
+ }catch(e){$('#gt-capacity').textContent=e.message}finally{button.disabled=false;}
+};
 
 let sceneRows=[];let sceneSync=null;
 function renderScenes(){
@@ -139,20 +178,94 @@ async function showScene(id){
 }
 $('#scene-search').addEventListener('input',renderScenes);
 
+function selectedDevices(){return $$('#compute-options input:checked').map(e=>e.value);}
+function computeDevice(id){return id.startsWith('volc-h20-')?'volc-h20':id;}
+function devicePools(id){return (state.compute?.pools||[]).filter(p=>id==='volc-h20'?computeDevice(p.id)===id:p.id===id);}
+function computeStatus(id,dataset,poolIds){
+ if(id==='local')return state.health?.ready?'已就绪，空闲时自动采集':'等待本机环境就绪，不影响其他设备';
+ const pools=devicePools(id).filter(p=>!poolIds||poolIds.includes(p.id)),enabled=pools.filter(p=>p.enabled),supported=enabled.filter(p=>p.datasets.includes(dataset)),ready=supported.filter(p=>p.ready);
+ if(!pools.length)return '尚未接入';
+ if(!enabled.length)return '未启用';
+ if(!supported.length)return '等待环境验证，就绪后自动加入';
+ if(ready.length)return ready.every(p=>p.pending_foreground)?'有其他任务排队，自动等待':'已就绪，空闲时自动采集';
+ return [...new Set(supported.map(p=>p.reason||'等待采集环境就绪'))].join('；');
+}
+$('#gt-form').elements.collection_mode.addEventListener('change',()=>{
+ updateGtReadiness();$('#gt-capacity').textContent='请重新检查所选采集范围。';
+});
+function updateComputePools(){
+ const previous=new Set(selectedDevices().map(computeDevice)),scale=['scalevln','srdf'].includes($('#gt-form').elements.source_dataset.value);
+ const targets=['local','baidu-pro6000','baidu-b200'];
+ for(const p of state.compute?.pools||[]){const id=computeDevice(p.id);if(p.enabled&&!targets.includes(id))targets.push(id);}
+ $('#compute-options').innerHTML=targets.map(id=>`<label><input type="checkbox" name="compute_device" value="${esc(id)}" ${previous.has(id)?'checked':''} ${scale&&id!=='local'?'disabled':''}>${esc(computeName(id))}</label>`).join('');
+}
+$('#compute-options').addEventListener('change',e=>{
+ if(!e.target.matches('input'))return;
+ if(!selectedDevices().length)$('#compute-options input[value="local"]').checked=true;
+ updateGtReadiness();$('#gt-capacity').textContent='请重新检查所选采集范围。';
+});
+function computeName(id){return {local:'GPU0','baidu-pro6000':'PRO6000','baidu-b200':'B200','volc-h20':'H20',auto:'自动分配'}[computeDevice(id)]||(state.compute?.pools||[]).find(p=>p.id===id)?.name||id;}
+function runComputeName(run){
+ if(run.config.execution!=='cloud_idle')return computeName('local');
+ const requested=run.config.compute_pool,assigned=(state.compute?.pools||[]).find(p=>p.name===run.progress?.pool)?.id;
+ return computeName(run.cloud?.pool_id||(requested&&requested!=='auto'?requested:assigned)||'auto');
+}
+
+
 function updateGtReadiness(){
  const h=state.health;if(!h)return;
- const vlnverse=$('#gt-form').elements.source_dataset.value==='vlnverse';
- $('#gt-form').elements.full_dataset.disabled=vlnverse;
- const ready=h.ready&&(!vlnverse||h.vlnverse_ready);
+ const f=$('#gt-form'),dataset=f.elements.source_dataset.value,vlnverse=dataset==='vlnverse',scalevln=dataset==='scalevln';
+ $('#check-capacity').disabled=dataset==='srdf';
+ if(dataset==='srdf'){
+  f.elements.collection_mode.value='custom';
+  f.elements.collection_mode.querySelector('[value="continuous"]').disabled=true;
+  f.elements.full_dataset.checked=false;f.elements.full_dataset.disabled=true;
+  f.elements.count.disabled=false;f.elements.workers.disabled=false;
+  $('#gt-custom-count').hidden=false;$('#gt-full-field').hidden=true;$('#cloud-policy').hidden=true;
+  $('#start-gt').disabled=true;$('#start-gt').textContent='连续轨迹尚未就绪';
+  const s=h.srdf||{};
+  $('#gt-ready').textContent=(s.source_ready?`SRDF 公开 round-3：${s.total_episodes} 条指令，${s.ready_scenes}/${s.total_scenes} 个共享场景已就绪。`:'SRDF 源数据尚未安装。')+(s.collection_reason||'当前仅支持源数据浏览。');
+  return;
+ }
+ const devices=selectedDevices(),cloud=devices.some(id=>id!=='local');
+ f.elements.collection_mode.querySelector('[value="continuous"]').disabled=vlnverse;
+ if(vlnverse)f.elements.collection_mode.value='custom';
+ const continuous=f.elements.collection_mode.value==='continuous';
+ // The two visible modes are bounded custom count and a durable continuous plan.
+ // Keep the legacy full-split API, but never let its old checkbox override count.
+ f.elements.full_dataset.checked=false;f.elements.full_dataset.disabled=true;
+ f.elements.count.disabled=continuous;f.elements.workers.disabled=continuous;
+ $('#gt-custom-count').hidden=continuous;$('#gt-full-field').hidden=true;
+ $('#cloud-policy').hidden=!continuous;
+ $('#start-gt').textContent=continuous?'启用持续采集':'开始采集 ↗';
+ if(cloud){
+  const pools=devices.filter(id=>id!=='local').map(devicePools);
+  const enabled=continuous?!scalevln&&pools.every(group=>group.some(p=>p.enabled)):devices.length===1&&pools[0]?.some(p=>p.enabled&&p.ready&&p.datasets.includes(dataset));
+  $('#start-gt').disabled=!enabled;
+  $('#gt-ready').textContent=devices.map(id=>computeName(id)+'：'+computeStatus(id,dataset)).join('；');
+  if(!continuous&&devices.length>1)$('#gt-ready').textContent='自定义数量请只选择一台设备；多设备请切换持续采集。';
+  return;
+ }
+ const ready=h.ready&&(!vlnverse||h.vlnverse_ready)&&(!scalevln||h.scalevln?.can_collect);
  $('#start-gt').disabled=!ready;
- $('#gt-ready').textContent=ready?'采集链路已就绪，点击即可在工作站运行。':vlnverse&&!h.vlnverse_ready?'VLNVerse 渲染环境正在部署与实测，完成后可直接采集。':'工作站采集环境尚未就绪。';
+ $('#gt-ready').textContent=ready?'GPU0 已就绪，点击即可开始采集。':vlnverse&&!h.vlnverse_ready?'VLNVerse 渲染环境正在部署与实测，完成后可直接采集。':'GPU0 采集环境尚未就绪。';
+ if(scalevln){const s=h.scalevln||{};$('#gt-ready').textContent=(ready?`ScaleVLN：当前 ${s.ready_scenes}/${s.total_scenes} 个场景，覆盖 ${s.ready_episodes}/${s.total_episodes} 条路线。${s.full_scene_coverage?'源场景已全量就绪，可按需采集。':'留空 ID 时仅选择场景已就绪的路线；不是全量场景。'}`:'ScaleVLN 源数据、场景或工作站环境尚未就绪。')+' 当前仅支持 GPU0；云端 HM3D 与源数据尚未部署验收，PRO6000 / B200 暂不可选。';}
+}
+function updateGtOptions(){
+ const f=$('#gt-form'),scale=['scalevln','srdf'].includes(f.elements.source_dataset.value);
+ for(const [name,value] of [['split','train'],['role','guide'],['language','all']]){
+  for(const option of f.elements[name].options)option.disabled=scale&&option.value!==value;
+  if(scale)f.elements[name].value=value;
+ }
+ for(const input of $$('#compute-options input')){input.disabled=scale&&input.value!=='local';if(scale)input.checked=input.value==='local';}
+ if(scale){f.elements.full_dataset.checked=false;f.elements.full_dataset.disabled=true;}
 }
 $('#gt-form').elements.source_dataset.addEventListener('change',e=>{
  const f=$('#gt-form');const v=e.target.value==='vlnverse';
  f.elements.role.value=v?'coarse':'guide';
  f.elements.split.value=v?'val_seen':'train';
  f.elements.language.value='all';f.elements.full_dataset.checked=false;f.elements.full_dataset.disabled=v;
- updateGtReadiness();
+ updateGtOptions();updateGtReadiness();
 });
 async function loadSceneEpisodes(id,offset){
  const result=await api('/sources?'+new URLSearchParams({dataset:'VLNVerse',scene:id,limit:10,offset}));

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Re-render R2R/RxR experts with LightNav's Habitat camera; export RVQ-10/FM-30.
+"""Re-render R2R/RxR/ScaleVLN experts with LightNav's camera; export RVQ-10/FM-30.
 
 Run with the separate Habitat Python 3.9 interpreter. Geometry lives in this
 package; only the dependency-light traj_vocab decoder is shared with inference.
@@ -112,7 +112,7 @@ def configure_navigation_mesh(sim, habitat_sim, cfg, scene):
     else:
         navmesh = Path(scene).with_suffix(".navmesh")
         if not navmesh.is_file() or not sim.pathfinder.load_nav_mesh(str(navmesh)):
-            raise FileNotFoundError(f"existing MP3D navmesh required: {navmesh}")
+            raise FileNotFoundError(f"existing scene navmesh required: {navmesh}")
 
 
 class Renderer:
@@ -377,7 +377,10 @@ def collect_episode(sim, episode, gt, directory, camera, bundle, pointing_config
     goal_distance = float(sim.geodesic_distance(positions[-1], episode["goals"][0]["position"]))
     if not np.isfinite(goal_distance):
         raise ValueError("replayed route ends disconnected from the goal")
-    success = goal_distance < 3.0
+    scalevln = episode.get("source_metadata", {}).get("dataset") == "scalevln"
+    # StreamVLN omits STOP in its published action array. Only supervise the
+    # restored STOP after a complete replay reaches the actual source goal.
+    success = goal_distance < (.5 if scalevln else 3.0)
     # A mismatched start heading / action convention otherwise creates bad labels silently.
     if float(deviation.max()) > 0.5 or not success:
         raise ValueError(f"expert replay failed: deviation={deviation.max():.3f}m, goal={goal_distance:.3f}m")
@@ -394,6 +397,9 @@ def collect_episode(sim, episode, gt, directory, camera, bundle, pointing_config
     )
     if "source_metadata" in episode:
         result["source_metadata"] = episode["source_metadata"]
+    if scalevln:
+        result["terminal_command"] = {"source": episode["source_metadata"]["stop_convention"],
+                                      "goal_verified": True, "success_distance_m": .5}
     write_json(directory / "episode.json", result)
     return result
 
@@ -402,10 +408,10 @@ def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True, help="New collection directory; never overwrite")
     parser.add_argument("--data-root", type=Path, required=True, help="R2R or RxR VLN-CE source root")
-    parser.add_argument("--scenes-dir", type=Path, required=True, help="Root containing mp3d/<scene>/<scene>.glb")
+    parser.add_argument("--scenes-dir", type=Path, required=True, help="Shared scene_datasets root containing mp3d/ or hm3d/")
     parser.add_argument("--rvq-bundle", type=Path, required=True, help="Released action_tokenizer directory")
     parser.add_argument("--config", type=Path, default=REPO / "habitat_server/configs/vlnce_r2r.yaml")
-    parser.add_argument("--dataset", choices=["r2r", "rxr"], default="r2r")
+    parser.add_argument("--dataset", choices=["r2r", "rxr", "scalevln"], default="r2r")
     parser.add_argument("--split", choices=SPLITS, default="train")
     parser.add_argument("--role", choices=["guide", "follower"], default="guide", help="RxR source role")
     parser.add_argument("--languages", nargs="+", choices=["all", *LANGUAGES], default=["all"])
@@ -430,11 +436,13 @@ def main():
 
     pointing_config = PointingConfig(**json.loads(args.pointing_config.read_text()))
     pointing_config.require_current()
-    all_episodes, gt, source_selection = load_source(
-        args.data_root, args.dataset, args.split, args.role, args.languages)
-    episode_path, gt_path = (Path(source_selection[k]) for k in ("episode_file", "gt_file"))
+    requested = None
     if args.episode_ids_file is not None:
         requested = [str(x) for x in json.loads(args.episode_ids_file.read_text())]
+    all_episodes, gt, source_selection = load_source(
+        args.data_root, args.dataset, args.split, args.role, args.languages, episode_ids=requested)
+    episode_path, gt_path = (Path(source_selection[k]) for k in ("episode_file", "gt_file"))
+    if args.episode_ids_file is not None:
         by_id = {str(e["episode_id"]): e for e in all_episodes}
         if not requested or len(set(requested)) != len(requested) or not set(requested) <= by_id.keys():
             raise ValueError("episode ID list must be nonempty, unique and present in the source split")
@@ -445,9 +453,9 @@ def main():
     if bundle.levels != [256, 256, 256] or bundle.manifest.get("alpha_mode") != "none":
         raise ValueError("expected the released 3x256 RVQ bundle with alpha_mode=none")
     cfg = simulator_config(args)
-    if args.dataset == "rxr" and (not np.isclose(cfg["turn_angle"], 15.)
+    if args.dataset in {"rxr", "scalevln"} and (not np.isclose(cfg["turn_angle"], 15.)
                                  or not np.isclose(cfg["forward_step_size"], .25)):
-        raise ValueError("RxR source conversion requires LightNav 15-degree turns and 0.25-metre forward steps")
+        raise ValueError("Source conversion requires LightNav 15-degree turns and 0.25-metre forward steps")
     sensor = cfg["agents"]["main_agent"]["sim_sensors"]["rgb_sensor"]
     depth_cfg = cfg["agents"]["main_agent"]["sim_sensors"]["depth_sensor"]
     camera = {
@@ -481,7 +489,7 @@ def main():
         "simulator_config": cfg,
         "renderer": "native Habitat-Sim with LightNav camera/action sampling; "
                     + ("RxR source collision settings and in-memory navmesh" if args.dataset == "rxr"
-                       else "existing MP3D navmeshes"),
+                       else "existing HM3D navmeshes" if args.dataset == "scalevln" else "existing MP3D navmeshes"),
         "habitat_sim_version": getattr(habitat_sim, "__version__", "unknown"),
         "python": sys.executable, "camera": camera,
         "world_axes": "Habitat: +Y up; native body +X right, +Y up, -Z forward",

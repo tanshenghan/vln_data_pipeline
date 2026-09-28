@@ -13,4 +13,5 @@ test-gt:
 
 test-web:
 	node --check apps/web/app.js
+	node --check apps/web/objectnav.js
 	node --test catalog/tests/test_*.js

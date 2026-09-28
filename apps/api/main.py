@@ -11,17 +11,20 @@ from fastapi.staticfiles import StaticFiles
 from starlette.background import BackgroundTask
 from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
-from .db import Base, engine, Run, Artifact, Review, Release, session, serialize, now
+from .db import Base, engine, Run, Artifact, CloudExecution, CollectionPlan, Review, Release, session, serialize, now
 from .settings import settings, ROOT
-from .schemas import RunRequest, ReviewRequest
+from .schemas import RunRequest, CollectionPlanRequest, ReviewRequest
 from .catalog_service import browse, detail, resolve_selection
 from . import produced_catalog
 from .produced_catalog import automatic_gt_passed
 from .preflight import health, validate_gt
 from workers.tasks import execute_run, run_dir
 from workers.command_runner import atomic_json
+from workers.cloud_config import cloud_status, validate_cloud
+from workers import collection_plans
 from contracts.check import check_metadata
 from catalog import vlnverse_scenes, vlnverse_data
+from data_pipeline import objectnav_source
 
 
 @asynccontextmanager
@@ -33,6 +36,65 @@ async def lifespan(app):
 
 
 app = FastAPI(title="VLN Data Pipeline", lifespan=lifespan)
+
+
+@app.get("/api/compute-pools")
+def compute_pools():
+    return cloud_status()
+
+
+@app.get("/api/collection-plans")
+def collection_plan_list():
+    return collection_plans.summaries()
+
+
+@app.post("/api/collection-plans/preflight")
+def collection_plan_preflight(payload: CollectionPlanRequest):
+    try:
+        return collection_plans.preview(payload)
+    except (ValueError, OSError) as exc:
+        raise HTTPException(422, str(exc))
+
+
+@app.post("/api/collection-plans", status_code=202)
+def create_collection_plan(payload: CollectionPlanRequest, idempotency_key: str = Header(min_length=8, max_length=128)):
+    requested = payload.model_dump(mode="json")
+    with session() as db:
+        existing = db.scalar(select(CollectionPlan).where(CollectionPlan.request_key == idempotency_key))
+        if existing:
+            if existing.config.get("plan_request_payload") != requested:
+                raise HTTPException(409, "同一请求 ID 不能更改采集计划")
+            return serialize(existing)
+    try:
+        cfg, rows = collection_plans.prepare(payload)
+    except (ValueError, OSError) as exc:
+        raise HTTPException(422, str(exc))
+    cfg["plan_request_payload"] = requested
+    try:
+        with session() as db:
+            plan = CollectionPlan(id=str(uuid.uuid4()), request_key=idempotency_key,
+                name=payload.name or f"{payload.dataset.upper()} {payload.split} 持续采集",
+                config=cfg, compute_pools=payload.compute_pools,
+                progress={"total": len(rows), "remaining": len(rows)})
+            db.add(plan)
+            db.flush()
+            return serialize(plan)
+    except IntegrityError:
+        with session() as db:
+            existing = db.scalar(select(CollectionPlan).where(CollectionPlan.request_key == idempotency_key))
+            if not existing or existing.config.get("plan_request_payload") != requested:
+                raise HTTPException(409, "请求 ID 冲突")
+            return serialize(existing)
+
+
+@app.post("/api/collection-plans/{plan_id}/{action}")
+def collection_plan_action(plan_id: str, action: str):
+    try:
+        return collection_plans.control_plan(plan_id, action)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc))
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
 
 
 @app.middleware("http")
@@ -70,6 +132,32 @@ def sources(request: Request, limit: int = 30, offset: int = 0):
         return browse(dict(request.query_params), min(100, max(1, limit)), max(0, offset))
     except ValueError as exc:
         raise HTTPException(422, str(exc))
+
+
+@app.get("/api/objectnav/datasets")
+def objectnav_datasets():
+    try:
+        return objectnav_source.overview(settings.source_resource_root, settings.scenes_root)
+    except (OSError, ValueError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.get("/api/objectnav/episodes")
+def objectnav_episodes(dataset: str, split: str, scene: str, category: str = "", offset: int = 0, limit: int = 30):
+    try:
+        return objectnav_source.page(settings.source_resource_root, settings.scenes_root,
+                                     dataset, split, scene, category, offset, limit)
+    except (OSError, ValueError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.get("/api/objectnav/episode")
+def objectnav_episode(dataset: str, split: str, scene: str, source_row: int):
+    try:
+        return objectnav_source.detail(settings.source_resource_root, settings.scenes_root,
+                                       dataset, split, scene, source_row)
+    except (OSError, ValueError) as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @app.get("/api/scenes")
@@ -152,7 +240,7 @@ def create_run(payload: RunRequest, idempotency_key: str = Header(min_length=8, 
         if not cfg["full_dataset"] and (cfg["kind"] == "gt" or cfg["source_ids"] or cfg["episode_ids"]):
             cfg = resolve_selection(cfg)
         if cfg["kind"] == "gt":
-            cfg["capacity"] = validate_gt(cfg)
+            cfg["capacity"] = validate_cloud(cfg) if cfg["execution"] == "cloud_idle" else validate_gt(cfg)
         elif not health()["seedance_ready"]:
             raise ValueError("Seedance API 密钥尚未配置，生成任务未提交")
         if payload.preview_id:
@@ -169,7 +257,7 @@ def create_run(payload: RunRequest, idempotency_key: str = Header(min_length=8, 
             if not plan.exists():
                 raise ValueError("预览的配置快照不存在，请重新预览")
             cfg["prepared_samples"] = json.loads(plan.read_text())
-    except ValueError as exc:
+    except (ValueError, OSError) as exc:
         raise HTTPException(422, str(exc))
     run_id = str(uuid.uuid4())
     cfg["request_payload"] = payload.model_dump(mode="json")
@@ -186,11 +274,12 @@ def create_run(payload: RunRequest, idempotency_key: str = Header(min_length=8, 
             if RunRequest.model_validate(row.config["request_payload"]).model_dump(mode="json") != payload.model_dump(mode="json"):
                 raise HTTPException(409, "请求 ID 冲突")
             return serialize(row)
-    try:
-        execute_run.delay(run_id)
-    except Exception:
-        # Transaction committed; reconciler will dispatch when the broker recovers.
-        result["dispatch"] = "等待队列恢复，任务已保存"
+    if cfg["execution"] == "local":
+        try:
+            execute_run.delay(run_id)
+        except Exception:
+            # Transaction committed; reconciler will dispatch when the broker recovers.
+            result["dispatch"] = "等待队列恢复，任务已保存"
     return result
 
 
@@ -202,7 +291,7 @@ def preflight(payload: RunRequest):
         cfg = payload.model_dump(mode="json")
         if not cfg["full_dataset"]:
             cfg = resolve_selection(cfg)
-        return validate_gt(cfg)
+        return validate_cloud(cfg) if cfg["execution"] == "cloud_idle" else validate_gt(cfg)
     except (ValueError, OSError) as exc:
         raise HTTPException(422, str(exc))
 
@@ -217,6 +306,9 @@ def run_detail(run_id: str):
         result["artifacts"] = [serialize(a) for a in db.scalars(select(Artifact).where(Artifact.run_id == run_id))]
         result["reviews"] = [serialize(r) for r in db.scalars(select(Review).where(Review.subject_id == run_id).order_by(Review.created_at.desc()))]
         result["release"] = next((serialize(r) for r in db.scalars(select(Release).where(Release.run_id == run_id))), None)
+        cloud = db.get(CloudExecution, run_id)
+        if cloud:
+            result["cloud"] = {k: getattr(cloud, k) for k in ("pool_id", "job_id", "job_name", "generation", "state", "stop_reason", "failures")}
     directory = run_dir(run_id)
     review = directory / "trajectory_review/summary.json"
     if review.exists():
@@ -267,22 +359,35 @@ def operate(run_id: str, action: str):
             raise HTTPException(404)
         if row.status in {"succeeded", "cancelled"}:
             raise HTTPException(409, "任务已结束")
+        if action in {"resume", "retry"} and row.config.get("collection_plan_id"):
+            plan = db.get(CollectionPlan, row.config["collection_plan_id"])
+            if plan and plan.control != "run":
+                raise HTTPException(409, "请先在 GT 采集页面恢复所属持续采集计划")
+        cloud_run = row.config.get("execution") == "cloud_idle"
+        cloud = db.get(CloudExecution, run_id) if cloud_run else None
+        cloud_active = cloud and cloud.state in {"submitted", "submitting", "uncertain", "stopping"}
         if action in {"resume", "retry"}:
+            if cloud_active:
+                raise HTTPException(409, "云任务尚未确认停止，不能重复提交")
             if row.status not in {"failed", "paused"}:
                 raise HTTPException(409, "任务尚未停止，不能重复执行")
             row.control, row.status = "run", "queued"
+            if cloud:
+                cloud.failures = 0
         else:
             row.control = action
-            if row.status == "queued" or (action == "cancel" and row.status in {"paused", "failed"}):
+            if not cloud_active and (row.status in {"queued", "waiting"} or (action == "cancel" and row.status in {"paused", "failed"})):
                 row.status = "paused" if action == "pause" else "cancelled"
         row.updated_at = now()
         intent = row.control
         full_dataset = row.config.get("full_dataset", False)
-    if full_dataset:
+    if full_dataset and not cloud_run:
         run_dir(run_id).mkdir(parents=True, exist_ok=True)
         atomic_json(run_dir(run_id) / "control.json", {"action": intent})
-    if action in {"retry", "resume"}:
+    if action in {"retry", "resume"} and not cloud_run:
         execute_run.delay(run_id)
+    if cloud_run:
+        return {"ok": True, "note": "操作已记录；云任务释放资源后生效，手动暂停不会自动续跑" if action in {"pause", "cancel"} else "已重新进入云端空闲采集队列"}
     return {"ok": True, "note": ("停止派发新分片，正在执行的分片完成后暂停" if full_dataset else "暂停将在当前阶段完成后生效") if action == "pause" else "操作已记录"}
 
 

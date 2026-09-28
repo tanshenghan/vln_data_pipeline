@@ -22,6 +22,8 @@ def source_record():
 @pytest.fixture
 def verse(tmp_path,monkeypatch):
     monkeypatch.setattr(settings,'resource_root',tmp_path)
+    monkeypatch.setattr(settings,'source_root',None)
+    monkeypatch.setattr(settings,'rvq_bundle_root',None)
     monkeypatch.setattr(settings,'vlnverse_managed_scene_root',None)
     monkeypatch.setattr(settings,'vlnverse_scene_root',None)
     root=settings.dataset_root('vlnverse');root.mkdir(parents=True)
