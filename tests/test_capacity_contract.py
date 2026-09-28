@@ -13,11 +13,17 @@ from contracts.check import check_metadata, CONTRACT_PATH
 @pytest.mark.parametrize('dataset,expected', [('r2r', 4), ('rxr', 6)])
 def test_capacity_counts_actual_replay_frames_and_checks_disk(tmp_path, monkeypatch, dataset, expected):
     monkeypatch.setattr(settings, 'resource_root', tmp_path)
+    monkeypatch.setattr(settings, 'source_root', None)
+    monkeypatch.setattr(settings, 'rvq_bundle_root', None)
     folder = settings.dataset_root(dataset) / 'val_seen'
     folder.mkdir(parents=True)
     stem = 'val_seen' + ('_guide' if dataset == 'rxr' else '')
     values = [(stem+'.json.gz', {'episodes':[{'episode_id':1,'scene_id':'mp3d/scene/scene.glb','instruction':{'language':'en-US'}}]}),
               (stem+'_gt.json.gz', {'1':{'actions':[2,1,3,0]}})]
+    if dataset == 'rxr':
+        # Original RxR files encode unavailable speech timing as bare NaN.
+        values[0][1]['episodes'][0]['instruction']['timed_instruction'] = [
+            {'word': 'forward', 'start_time': float('nan'), 'end_time': float('nan')}]
     for filename, data in values:
         with gzip.open(folder/filename, 'wt') as stream: json.dump(data,stream)
     scene = tmp_path/'scene_datasets/mp3d/scene/scene.glb'

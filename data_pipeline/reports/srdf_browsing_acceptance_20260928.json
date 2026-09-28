@@ -1,0 +1,56 @@
+{
+  "checked_at": "2026-09-28T03:22:19.797612+00:00",
+  "scope": "public SRDF HM3D round-3 instruction and discrete-route browsing",
+  "browsing_accepted": true,
+  "gt_collection_accepted": false,
+  "deployment_url": "http://192.168.110.66:8801/?dataset=SRDF&split=train&language=en&role=guide#atlas",
+  "shared_source_root": "/home/beta/.local/share/vln-pipeline/datasets/SRDF",
+  "shared_scene_root": "/home/beta/.local/share/vln-pipeline/scene_datasets/hm3d",
+  "repository": "ZunWang/SRDF",
+  "revision": "785901fab701bd2cad1f47204d56523e86a8725d",
+  "episodes": 413999,
+  "routes": 413999,
+  "scenes": 799,
+  "scene_mesh_and_navmesh_ready": 799,
+  "raw_sha256": {
+    "mantis.hm3d_round3_greedy_ndtw0.9_ranked_414k_rouge0.85.json": "4b221177d3cb71657f5db90275af5933e5bcd86a3a9fd048baba3d2fe4e53e5f",
+    "r2r_preprocess_data.zip": "d1820ae38a115e577df3aeb09360d6f2313b82b77a59476dff1386b04ab7345a"
+  },
+  "continuous_source": {
+    "repository": "SongzeLi/SRDF_CE_400k",
+    "revision": "f40f341f6e7329065018590a56b5793953d1cf29",
+    "file": "merged_dataset_400k.jsonl",
+    "authenticated_get_status": 403,
+    "reason": "awaiting a review from the repo authors",
+    "downloaded": false,
+    "schema_verified": false
+  },
+  "checks": {
+    "all_route_viewpoints_resolved": true,
+    "source_instruction_ids_and_text_preserved": true,
+    "native_graph_coordinate_frame_preserved": true,
+    "existing_source_records_preserved": true,
+    "existing_ground_truth_records_preserved": 167658,
+    "existing_video_ids_and_content_hashes_preserved_at_deployment": 45,
+    "api_synthetic_gt_requests_rejected_422": true,
+    "browser_filter_paging_reference_route": true,
+    "browser_collection_disabled_with_reason": true,
+    "browser_atlas_gt_and_seedance_actions_disabled": true,
+    "browser_switch_back_to_r2r_restores_controls": true,
+    "browser_javascript_errors": [],
+    "browser_write_requests": [],
+    "run_ids_unchanged_during_browser_acceptance": true,
+    "platform_and_catalog_tests": 264,
+    "platform_subtests": 27,
+    "pipeline_tests": 211,
+    "node_tests": 19
+  },
+  "browser_evidence": "test-results/srdf-web-20260928-final/evidence.json",
+  "index_backup": "runtime/srdf-index.ZWQEVE/previous",
+  "limitations": [
+    "Public intermediate release, not the unrecoverable final SRDF-20M corpus.",
+    "Discrete viewpoint references are not per-frame body poses or continuous expert actions.",
+    "No GT collection, neural inference or LeRobot generation was started.",
+    "SRDF-CE requires author approval, actual schema/STOP audit and real replay acceptance before enabling collection."
+  ]
+}

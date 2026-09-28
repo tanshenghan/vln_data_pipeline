@@ -1,0 +1,133 @@
+{
+  "checked_at": "2026-09-28T03:19:52.416264+00:00",
+  "complete": true,
+  "shared_runs_root": "/home/beta/.local/share/vln-pipeline/runs",
+  "local_migration": {
+    "runs": 7,
+    "sha256_verified_files": 2058,
+    "symlinks_verified": 25,
+    "bytes": 857118808,
+    "old_paths_are_symlinks": true
+  },
+  "cloud_archives": {
+    "runs": 2,
+    "sha256_verified_files": 454,
+    "bytes": 191534403,
+    "remote_checkpoints_preserved": true
+  },
+  "permissions": {
+    "all_local_users_read_write": true,
+    "nobody_read_write_verified": true,
+    "private_runtime_and_credentials_unchanged": true
+  },
+  "ui": {
+    "quantity_modes": [
+      "custom",
+      "continuous"
+    ],
+    "browser_checks": 28,
+    "write_requests": 0,
+    "evidence": "test-results/shared-runs-20260928-final/evidence.json"
+  },
+  "first_gpu0_batches": [
+    {
+      "dataset": "r2r",
+      "run_id": "26c96a35-c92a-4b9b-b800-9de5c1ebf912",
+      "episodes": 8,
+      "checks": {
+        "complete": true,
+        "self_contained": true,
+        "official_loader_all_frames": true,
+        "all_30_source_arrays_exact": true,
+        "geometry_recomputed": true
+      }
+    },
+    {
+      "dataset": "rxr",
+      "run_id": "6b0e1ef5-3625-44b6-bfa2-1fb413d868ba",
+      "episodes": 8,
+      "checks": {
+        "complete": true,
+        "self_contained": true,
+        "official_loader_all_frames": true,
+        "all_30_source_arrays_exact": true,
+        "geometry_recomputed": true
+      }
+    },
+    {
+      "dataset": "scalevln",
+      "run_id": "239d5196-1bd5-47af-852a-69bff578c3bc",
+      "episodes": 8,
+      "checks": {
+        "complete": true,
+        "self_contained": true,
+        "official_loader_all_frames": true,
+        "all_30_source_arrays_exact": true,
+        "geometry_recomputed": true
+      }
+    }
+  ],
+  "continuous_plans": [
+    {
+      "id": "5ddbe43a-0278-4902-80bf-086afb92d9f6",
+      "name": "SCALEVLN train · GPU0 持续采集",
+      "control": "run",
+      "status": "running",
+      "progress": {
+        "total": 155098,
+        "completed": 10,
+        "remaining": 155080,
+        "ready_remaining": 155080,
+        "batches_completed": 1,
+        "batches_failed": 0
+      },
+      "error": null
+    },
+    {
+      "id": "3afc3732-074a-4c49-adf5-8ee9174de16b",
+      "name": "RXR train · GPU0 持续采集",
+      "control": "run",
+      "status": "waiting",
+      "progress": {
+        "total": 60300,
+        "completed": 17,
+        "remaining": 60283,
+        "ready_remaining": 60283,
+        "batches_completed": 2,
+        "batches_failed": 0
+      },
+      "error": null
+    },
+    {
+      "id": "6fa62d2d-1af8-476d-b77b-df805b6137cb",
+      "name": "R2R train · GPU0 持续采集",
+      "control": "run",
+      "status": "waiting",
+      "progress": {
+        "total": 10819,
+        "completed": 18,
+        "remaining": 10801,
+        "ready_remaining": 10801,
+        "batches_completed": 2,
+        "batches_failed": 0
+      },
+      "error": null
+    }
+  ],
+  "capacity_reserve_gib": 30,
+  "artifact_paths_verified": 119,
+  "video_and_report_http_readback": true,
+  "regression": {
+    "command": "make test LEROBOT_PYTHON=<configured VLN_LEROBOT_PYTHON>",
+    "passed": true,
+    "platform_tests": 268,
+    "pipeline_tests": 211,
+    "javascript_tests": 19,
+    "platform_subtests": 27
+  },
+  "limitations": [
+    "ScaleVLN remains local-only; cloud pools require independent HM3D deployment acceptance.",
+    "B200 is enabled but its original cloud runtime acceptance is still pending.",
+    "Shared files do not merge separate deployment task databases."
+  ]
+}

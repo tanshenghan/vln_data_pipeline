@@ -42,6 +42,23 @@ class Artifact(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class CloudExecution(Base):
+    """One durable cloud binding per run; checkpoints never move between pools."""
+    __tablename__ = "cloud_executions"
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), primary_key=True)
+    pool_id: Mapped[str] = mapped_column(String)
+    directory: Mapped[str] = mapped_column(Text)
+    pool_digest: Mapped[str] = mapped_column(String)
+    pool_spec: Mapped[dict] = mapped_column(JSON)
+    generation: Mapped[int] = mapped_column(Integer, default=0)
+    job_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    job_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    state: Mapped[str] = mapped_column(String, default="waiting")
+    stop_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    not_before: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    failures: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class DataSample(Base):
     """Searchable produced samples; upstream source episodes remain read-only."""
     __tablename__ = "data_samples"
@@ -59,6 +76,36 @@ class DataSample(Base):
     quality: Mapped[str] = mapped_column(String, index=True)
     details: Mapped[dict] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class CollectionPlan(Base):
+    """Persistent demand for fresh source episodes, independent of browser sessions."""
+    __tablename__ = "collection_plans"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    request_key: Mapped[str] = mapped_column(String, unique=True)
+    name: Mapped[str] = mapped_column(String)
+    config: Mapped[dict] = mapped_column(JSON)
+    compute_pools: Mapped[list] = mapped_column(JSON)
+    control: Mapped[str] = mapped_column(String, default="run")
+    status: Mapped[str] = mapped_column(String, default="waiting")
+    progress: Mapped[dict] = mapped_column(JSON, default=dict)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class CollectionBatch(Base):
+    __tablename__ = "collection_batches"
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), primary_key=True)
+    plan_id: Mapped[str] = mapped_column(ForeignKey("collection_plans.id"), index=True)
+    paused_by_plan: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class CollectionClaim(Base):
+    """One source can be assigned to only one continuous batch, even after restart."""
+    __tablename__ = "collection_claims"
+    source_id: Mapped[str] = mapped_column(String, primary_key=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), index=True)
 
 
 class Review(Base):

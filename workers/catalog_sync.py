@@ -27,9 +27,9 @@ def sync_gt_catalog():
                     # VLNVerse uses the unified produced catalog; MP3D snapshot stays intact.
                     continue
                 records = cfg.get('source_records', [])
-                source_id = records[0]['source_id'] if records else {'r2r':'r2r-vlnce-v1-3','rxr':'rxr-vlnce-v0'}[cfg['dataset']]
+                source_id = records[0]['source_id'] if records else {'r2r':'r2r-vlnce-v1-3','rxr':'rxr-vlnce-v0','scalevln':'scalevln-streamvln-150k'}[cfg['dataset']]
                 sources.append({'root':str(dataset),'source_id':source_id,
-                    'dataset':{'r2r':'R2R','rxr':'RxR'}[cfg['dataset']], 'split':cfg['split'],'role':cfg['role']})
+                    'dataset':{'r2r':'R2R','rxr':'RxR','scalevln':'ScaleVLN'}[cfg['dataset']], 'split':cfg['split'],'role':cfg['role']})
         if not sources:
             return {'matched_records':0}
         with tempfile.TemporaryDirectory(dir=settings.runtime_root) as scratch:

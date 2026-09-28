@@ -4,10 +4,13 @@
 .env.*
 !.env.example
 configs/*.local.*
+configs/cloud/*.local.*
 runtime/
 __pycache__/
 *.pyc
 .pytest_cache/
 node_modules/
 test-results/
+# Unmodified source episode extracts used for local walkthroughs are data, not code.
+data_pipeline/reports/navigation_lesson_*/
 *.log

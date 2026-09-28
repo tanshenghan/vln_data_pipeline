@@ -1,0 +1,148 @@
+{
+  "pools": [
+    {
+      "id": "volc-h20-q1",
+      "name": "火山 H20 · 队列 1",
+      "provider": "volcengine",
+      "enabled": false,
+      "region": "cn-beijing",
+      "endpoint": "https://open.volcengineapi.com",
+      "queue_id": "REPLACE_VOLC_QUEUE_1_ID",
+      "resource_pool_id": "",
+      "project_name": "default",
+      "monitor_queue_ids": [
+        "REPLACE_VOLC_QUEUE_1_ID"
+      ],
+      "access_key_env": "VOLCENGINE_ACCESS_KEY_ID",
+      "secret_key_env": "VOLCENGINE_SECRET_ACCESS_KEY",
+      "session_token_env": "VOLCENGINE_SESSION_TOKEN",
+      "template_file": "cloud/volcengine.local.json",
+      "local_storage_root": "/mnt/vln-cloud/volc-h20-q1",
+      "remote_storage_root": "/mnt/cloud",
+      "storage_id": "vln-volc-h20-q1-v1",
+      "remote_repo": "/opt/VLN_Data_Pipeline",
+      "remote_python": "/opt/platform/bin/python",
+      "worker_env": {
+        "VLN_SOURCE_ROOT": "/mnt/source",
+        "VLN_HABITAT_PYTHON": "/opt/habitat/bin/python",
+        "VLN_LEROBOT_PYTHON": "/opt/lerobot/bin/python",
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,graphics"
+      },
+      "validated_datasets": [],
+      "max_active_jobs": 1,
+      "idle_seconds": 120,
+      "cooldown_seconds": 120,
+      "lease_seconds": 90,
+      "stop_grace_seconds": 15,
+      "max_failures": 3
+    },
+    {
+      "id": "volc-h20-q2",
+      "name": "火山 H20 · 队列 2",
+      "provider": "volcengine",
+      "enabled": false,
+      "region": "cn-beijing",
+      "endpoint": "https://open.volcengineapi.com",
+      "queue_id": "REPLACE_VOLC_QUEUE_2_ID",
+      "resource_pool_id": "",
+      "project_name": "default",
+      "monitor_queue_ids": [
+        "REPLACE_VOLC_QUEUE_2_ID"
+      ],
+      "access_key_env": "VOLCENGINE_ACCESS_KEY_ID",
+      "secret_key_env": "VOLCENGINE_SECRET_ACCESS_KEY",
+      "session_token_env": "VOLCENGINE_SESSION_TOKEN",
+      "template_file": "cloud/volcengine.local.json",
+      "local_storage_root": "/mnt/vln-cloud/volc-h20-q2",
+      "remote_storage_root": "/mnt/cloud",
+      "storage_id": "vln-volc-h20-q2-v1",
+      "remote_repo": "/opt/VLN_Data_Pipeline",
+      "remote_python": "/opt/platform/bin/python",
+      "worker_env": {
+        "VLN_SOURCE_ROOT": "/mnt/source",
+        "VLN_HABITAT_PYTHON": "/opt/habitat/bin/python",
+        "VLN_LEROBOT_PYTHON": "/opt/lerobot/bin/python",
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,graphics"
+      },
+      "validated_datasets": [],
+      "max_active_jobs": 1,
+      "idle_seconds": 120,
+      "cooldown_seconds": 120,
+      "lease_seconds": 90,
+      "stop_grace_seconds": 15,
+      "max_failures": 3
+    },
+    {
+      "id": "baidu-pro6000",
+      "name": "百度 PRO6000",
+      "provider": "baidu",
+      "enabled": false,
+      "region": "bj",
+      "endpoint": "https://aihc.bj.baidubce.com",
+      "queue_id": "REPLACE_BAIDU_PRO6000_QUEUE_ID",
+      "resource_pool_id": "aihc-serverless",
+      "project_name": "default",
+      "monitor_queue_ids": [
+        "REPLACE_BAIDU_PRO6000_QUEUE_ID"
+      ],
+      "access_key_env": "BAIDU_ACCESS_KEY_ID",
+      "secret_key_env": "BAIDU_SECRET_ACCESS_KEY",
+      "session_token_env": "BAIDU_SESSION_TOKEN",
+      "template_file": "cloud/baidu-pro6000.local.json",
+      "local_storage_root": "/mnt/vln-cloud/baidu-pro6000",
+      "remote_storage_root": "/mnt/cloud",
+      "storage_id": "vln-baidu-pro6000-v1",
+      "remote_repo": "/opt/VLN_Data_Pipeline",
+      "remote_python": "/opt/platform/bin/python",
+      "worker_env": {
+        "VLN_SOURCE_ROOT": "/mnt/source",
+        "VLN_HABITAT_PYTHON": "/opt/habitat/bin/python",
+        "VLN_LEROBOT_PYTHON": "/opt/lerobot/bin/python",
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,graphics"
+      },
+      "validated_datasets": [],
+      "max_active_jobs": 1,
+      "idle_seconds": 120,
+      "cooldown_seconds": 120,
+      "lease_seconds": 90,
+      "stop_grace_seconds": 15,
+      "max_failures": 3
+    },
+    {
+      "id": "baidu-b200",
+      "name": "百度 B200",
+      "provider": "baidu",
+      "enabled": false,
+      "region": "bj",
+      "endpoint": "https://aihc.bj.baidubce.com",
+      "queue_id": "REPLACE_BAIDU_B200_QUEUE_ID",
+      "resource_pool_id": "aihc-serverless",
+      "project_name": "default",
+      "monitor_queue_ids": [
+        "REPLACE_BAIDU_B200_QUEUE_ID"
+      ],
+      "access_key_env": "BAIDU_ACCESS_KEY_ID",
+      "secret_key_env": "BAIDU_SECRET_ACCESS_KEY",
+      "session_token_env": "BAIDU_SESSION_TOKEN",
+      "template_file": "cloud/baidu-b200.local.json",
+      "local_storage_root": "/mnt/vln-cloud/baidu-b200",
+      "remote_storage_root": "/mnt/cloud",
+      "storage_id": "vln-baidu-b200-v1",
+      "remote_repo": "/opt/VLN_Data_Pipeline",
+      "remote_python": "/opt/platform/bin/python",
+      "worker_env": {
+        "VLN_SOURCE_ROOT": "/mnt/source",
+        "VLN_HABITAT_PYTHON": "/opt/habitat/bin/python",
+        "VLN_LEROBOT_PYTHON": "/opt/lerobot/bin/python",
+        "NVIDIA_DRIVER_CAPABILITIES": "compute,utility,graphics"
+      },
+      "validated_datasets": [],
+      "max_active_jobs": 1,
+      "idle_seconds": 120,
+      "cooldown_seconds": 120,
+      "lease_seconds": 90,
+      "stop_grace_seconds": 15,
+      "max_failures": 3
+    }
+  ]
+}

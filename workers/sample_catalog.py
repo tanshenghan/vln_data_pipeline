@@ -9,7 +9,8 @@ from catalog.vln_catalog import connect
 
 
 def register_samples(run_id):
-    directory=settings.runs_root/run_id
+    from workers.tasks import run_dir
+    directory=run_dir(run_id)
     with session() as db:
         run=db.get(Run,run_id)
         if not run or run.config.get('operation')=='preview':return
@@ -29,7 +30,7 @@ def register_samples(run_id):
                     matches=[r for r in sources if str(r['episode_id'])==eid and r['scene']==scene and r['instruction'].strip()==episode['instruction'].strip()]
                     if not matches:
                         rows=catalog.execute('SELECT detail FROM episodes WHERE dataset=? AND split=? AND role=? AND episode_id=? AND scene=?',
-                            ({'r2r':'R2R','rxr':'RxR'}[cfg['dataset']],cfg['split'],cfg['role'],eid,scene)).fetchall()
+                            ({'r2r':'R2R','rxr':'RxR','scalevln':'ScaleVLN'}[cfg['dataset']],cfg['split'],cfg['role'],eid,scene)).fetchall()
                         matches=[json.loads(r[0]) for r in rows if json.loads(r[0])['instruction'].strip()==episode['instruction'].strip()]
                     if len(matches)!=1:raise ValueError('采集产物无法唯一匹配来源样本：'+eid)
                     source=matches[0]
@@ -78,7 +79,8 @@ def register_samples(run_id):
 
 
 def register_vlnverse_candidates(run_id):
-    directory=settings.runs_root/run_id/'trajectory_review'
+    from workers.tasks import run_dir
+    directory=run_dir(run_id)/'trajectory_review'
     report=json.loads((directory/'summary.json').read_text())
     with session() as db:
         run=db.get(Run,run_id)

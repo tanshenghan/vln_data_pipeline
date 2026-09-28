@@ -1,4 +1,4 @@
-"""Index all validated R2R/RxR observations and render cached metadata jobs."""
+"""Index validated R2R/RxR/ScaleVLN observations and render cached metadata jobs."""
 from __future__ import annotations
 
 import argparse
@@ -64,7 +64,12 @@ def build_collection(catalog, sources, output, video_root, renderer, python):
                     with (root / "meta/beta_nav.json").open("rb") as handle:
                         for item in ijson.items(handle, "episodes.item", use_float=True):
                             scene, episode_id = Path(item["scene_id"]).stem, str(item["episode_id"])
-                            if not re.fullmatch(r"[A-Za-z0-9_-]+", scene) or not episode_id.isdecimal():
+                            scene_pattern = r"[A-Za-z0-9_-]+"
+                            if source["dataset"] == "ScaleVLN":
+                                from data_pipeline.scalevln_source import scene_relative
+                                scene_relative(item["scene_id"])
+                                scene_pattern += r"\.basis"
+                            if not re.fullmatch(scene_pattern, scene) or not episode_id.isdecimal():
                                 raise ValueError("unsafe source scene/episode identifier")
                             provenance = item.get("source_metadata", {})
                             for field in ("dataset", "split", "role"):

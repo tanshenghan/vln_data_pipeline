@@ -1,5 +1,8 @@
 # 最终版数据生产管线
 
+网页采集数量支持“自定义 / 持续采集”，本机多个计划轮流领取有界批次。
+共享输出、权限和迁移边界见 [SHARED_RUNS.md](docs/SHARED_RUNS.md)。
+
 当前代码：**后半段 opos + LeRobotDataset v3.0 导出**。本目录是数据管线的统一入口。
 完整生成说明见 [当前数据管线总览](docs/PIPELINE_OVERVIEW.md)（2026-09-14 核对）：
 从 R2R 回放、四类 GT 计算、尾部与缺失点处理，到全量分批、Parquet/chunk、真实样本和核心代码入口。
@@ -12,13 +15,26 @@ apos/opos 视频，无需保留采集 scratch。读取方式、预览命令和�
 RxR 使用 [run_rxr.sh](run_rxr.sh) 接入同一套回放、四类 GT 和 Parquet 导出，
 支持 train/val_seen/val_unseen、guide/follower 及语言筛选；各来源分别保存。
 输入范围、命令和元数据约定见 [RXR_LEROBOT.md](docs/RXR_LEROBOT.md)。
+ScaleVLN 接入 StreamVLN 发布的 155,098 条连续轨迹子集，复用共享 HM3D 和同一 GT/LeRobot
+链路；仅从已有场景的路线采集，网页操作、STOP 来源、覆盖边界与接入代码见
+[SCALEVLN.md](docs/SCALEVLN.md)。
+SRDF 已接入官方公开 HM3D round-3 离散指令路线，可在数据目录查看；这不是逐帧 GT，
+连续采集仍待 SRDF-CE 作者授权、格式适配和真实验收。共享安装与边界见 [SRDF.md](docs/SRDF.md)。
+MP3D ObjectNav v1、HM3D ObjectNav v1/v2 的原始目标导航任务已加入独立网页浏览入口
+`/#objectnav`；当前支持查看/筛选，不代表 GT/LeRobot 可采集。官方包下载、全量 HM3D
+共享安装、语义版本隔离及后续采集边界见 [HABITAT_OBJECTNAV.md](docs/HABITAT_OBJECTNAV.md)。
 本项目仅迁入数据生产所需依赖；模型训练、SlowFast 数据加载器和机器人推理仍属于上游 Beta_Nav，不包含在本仓库中。正式 LeRobot 数据保持独立可读。
-网站直接采集支持 R2R/RxR 公开专家划分；全量任务的暂停、分片续跑和容量预检见 [平台控制说明](docs/FULL_R2R_TRAIN.md#平台控制与划分2026-09-17)。
+网站直接采集支持 R2R/RxR 公开专家划分，以及 ScaleVLN 连续子集的本机小批量采集；R2R/RxR 全量任务的暂停、分片续跑和容量预检见 [平台控制说明](docs/FULL_R2R_TRAIN.md#平台控制与划分2026-09-17)。
 先读 [最终流程与人工检查顺序](docs/FINAL_PIPELINE.md)，再按下表查看代码。
 清理时的冻结代码包和逐文件哈希位于 [releases/](releases/README.md)，
 这些历史快照不包含后续 pointing_zero 修改。
 
 VLNVerse / Kujiale 使用独立原生 USD 采集入口：有公开路线则回放，没有则使用 LightNav 闭环推理，并由 VLM 审核。通过且有明确终止命令的轨迹复用同一 GT 契约，其他结果保留为候选。全量场景同步、参考轨迹边界、坐标转换和采样定义见 [VLNVERSE.md](docs/VLNVERSE.md)。
+
+EVT-Bench 原生动态跟随环境探测使用 [probe_evt_bench.py](probe_evt_bench.py)。
+它输出基线跟随的 RGB、panoptic、位姿与视频，不是 BetaNav GT 或 LeRobot
+生产采集。独立环境、共享 HM3D 示例与 ScaleVLN 授权边界见
+[EVT_AND_HM3D.md](docs/EVT_AND_HM3D.md)。
 
 ## 核心代码
 
@@ -35,6 +51,9 @@ VLNVerse / Kujiale 使用独立原生 USD 采集入口：有公开路线则回�
 | 9 | [lerobot_stats.py](lerobot_stats.py)、[validate_lerobot.py](validate_lerobot.py) | 排除无效 GT 的统计；官方加载器、全部字段与独立几何校验 |
 | 10 | [build_r2r_train.py](build_r2r_train.py)、[merge_lerobot.py](merge_lerobot.py) | 完整 train 指令覆盖、同路线渲染复用、续跑、合并与索引校验 |
 | 11 | [run_rxr.sh](run_rxr.sh)、[vlnce_source.py](vlnce_source.py) | RxR split/role/语言、30° 转向展开、来源记录；复用同一 GT/导出流程 |
+| 12 | [scalevln_source.py](scalevln_source.py) | 固定版本 ScaleVLN 轨迹/动作关联、共享 HM3D、源 STOP 约定和场景覆盖 |
+| 13 | [objectnav_source.py](objectnav_source.py) | 三版 ObjectNav 原始任务、物体/观测点、身份及只读分页 |
+| 14 | [download_habitat_assets.py](download_habitat_assets.py)、[install_habitat_assets.py](install_habitat_assets.py) | 官方授权下载、校验、断点续传、共享资产不覆盖与语义版本隔离 |
 
 共享依赖：[RVQ 解码器](../src/lightnav/traj_vocab.py)、
 [网格 token 工具](../src/lightnav/vln_utils.py)、
@@ -190,5 +209,11 @@ timestamp 等于帧序号。GT 视频位于
 ## 工作站平台接入
 
 统一网页入口与服务维护说明见 [平台配置](../docs/CONFIGURATION.md)。平台调用本目录既有采集、校验和导出入口，生产资源由 `BETA_DATA_ROOT`、`BETA_SCENES_DIR`、`BETA_RVQ_BUNDLE` 及解释器配置指定。GT 字段和标签含义保持不变。
+
+[云端空闲采集](../docs/CLOUD_COLLECTION.md)复用这些入口。云执行器设置 `VLN_CLOUD_WORKER=true` 时，`run.sh` 保留云平台分配的 `CUDA_VISIBLE_DEVICES`；输出和分片必须放在持久化盘上，抢占后重做未完成阶段并复用完整分片。
+
+首次接入共享资源后，运行 `.venv/bin/python data_pipeline/verify_environment.py` 实测一条
+R2R 的渲染、导出、独立读回和视频，成功后才更新工作站就绪标记。
+参数与证据位置见 [环境验收](docs/ENVIRONMENT_ACCEPTANCE.md)。
 
 Habitat 与 LeRobot 使用独立 Python/NumPy 环境。投影结果的跨环境浮点复算允许 `1e-9` 绝对舍入误差，离散 token、状态、mask 与字段仍严格比较；导出环境 NumPy 固定为 1.26.4。

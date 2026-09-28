@@ -1,4 +1,4 @@
-"""Read local R2R/RxR expert sources without Habitat or training dependencies."""
+"""Read local R2R/RxR/ScaleVLN expert sources without Habitat/model dependencies."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from pathlib import Path
 DATA_ROOTS = {
     "r2r": Path("/mnt/cfs/data/habitat/datasets/R2R_VLNCE_v1-3_preprocessed"),
     "rxr": Path("/mnt/cfs/data/habitat/datasets/RxR_VLNCE_v0"),
+    "scalevln": Path("/mnt/cfs/data/habitat/datasets/ScaleVLN_StreamVLN"),
 }
 LANGUAGES = ("en-US", "en-IN", "hi-IN", "te-IN")
 SPLITS = ("train", "val_seen", "val_unseen")
@@ -29,12 +30,14 @@ def rxr_replay_actions(actions):
 def source_paths(root, dataset="r2r", split="train", role="guide"):
     """Keep original split/role files separate; never manufacture test GT."""
     if dataset not in DATA_ROOTS or role not in ("guide", "follower"):
-        raise ValueError("expected dataset r2r/rxr and role guide/follower")
+        raise ValueError("expected dataset r2r/rxr/scalevln and role guide/follower")
     if split not in SPLITS:
         raise ValueError("only train/val_seen/val_unseen have supported expert GT; test_challenge is excluded")
-    if dataset == "r2r" and role != "guide":
-        raise ValueError("R2R has no follower annotations")
-    stem = split if dataset == "r2r" else f"{split}_{role}"
+    if dataset in {"r2r", "scalevln"} and role != "guide":
+        raise ValueError("R2R/ScaleVLN have no follower annotations")
+    if dataset == "scalevln" and split != "train":
+        raise ValueError("The supported ScaleVLN-CE release contains only train")
+    stem = f"{split}_{role}" if dataset == "rxr" else split
     root = Path(root)
     paths = (root / split / f"{stem}.json.gz", root / split / f"{stem}_gt.json.gz")
     for path in paths:
@@ -43,7 +46,7 @@ def source_paths(root, dataset="r2r", split="train", role="guide"):
     return paths
 
 
-def load_source(root, dataset="r2r", split="train", role="guide", languages=None):
+def load_source(root, dataset="r2r", split="train", role="guide", languages=None, episode_ids=None):
     """Return selected original episodes, their GT, and auditable selection metadata.
 
     Instruction text is never translated or deduplicated. Speech timing remains
@@ -54,21 +57,33 @@ def load_source(root, dataset="r2r", split="train", role="guide", languages=None
         raise ValueError("languages=all cannot be combined with individual languages")
     if set(languages) - {"all", *LANGUAGES}:
         raise ValueError(f"unsupported languages: {languages}")
-    if dataset == "r2r" and languages != ["all"]:
+    if dataset in {"r2r", "scalevln"} and languages != ["all"]:
         raise ValueError("language filtering is only supported for RxR")
     episode_path, gt_path = source_paths(root, dataset, split, role)
-    with gzip.open(episode_path, "rt", encoding="utf-8") as stream:
-        originals = json.load(stream)["episodes"]
+    preparation = None
+    if dataset == "scalevln":
+        from data_pipeline.scalevln_source import prepared_manifest
+        from catalog.vln_catalog import read_rows
+        preparation = prepared_manifest(root, verify_hashes=True)
+        originals = read_rows(episode_path)
+    else:
+        with gzip.open(episode_path, "rt", encoding="utf-8") as stream:
+            originals = json.load(stream)["episodes"]
     with gzip.open(gt_path, "rt", encoding="utf-8") as stream:
         gt = json.load(stream)
     selected, selected_gt, seen = [], {}, set()
+    wanted = set(map(str, episode_ids)) if episode_ids is not None else None
+    original_count = 0
     for original in originals:
+        original_count += 1
         episode_id = str(original["episode_id"])
         if not episode_id or episode_id in (".", "..") or "/" in episode_id or "\\" in episode_id:
             raise ValueError(f"unsafe source episode ID: {episode_id!r}")
         if episode_id in seen:
             raise ValueError(f"duplicate source episode ID: {episode_id}")
         seen.add(episode_id)
+        if wanted is not None and episode_id not in wanted:
+            continue
         instruction = original["instruction"]
         language = instruction.get("language")
         if dataset == "rxr":
@@ -98,12 +113,16 @@ def load_source(root, dataset="r2r", split="train", role="guide", languages=None
         selected.append(episode)
     if not selected:
         raise ValueError("source selection contains no episodes")
+    if wanted is not None and wanted != set(selected_gt):
+        raise ValueError("requested source episode IDs are missing")
     metadata = dict(dataset=dataset, split=split, role=role if dataset == "rxr" else None,
-        languages=languages, source_episode_count=len(originals), selected_episode_count=len(selected),
+        languages=languages, source_episode_count=original_count, selected_episode_count=len(selected),
         language_counts=dict(sorted(Counter(e["instruction"].get("language", "unspecified") for e in selected).items())),
         source_frames=sum(len(gt[str(e["episode_id"])]["actions"]) for e in selected),
         replay_frames=sum(len(v["actions"]) for v in selected_gt.values()),
         episode_file=str(episode_path), gt_file=str(gt_path))
+    if preparation is not None:
+        metadata["preparation"] = preparation
     if dataset == "rxr":
         metadata["motion_conversion"] = dict(source_turn_angle_deg=30, replay_turn_angle_deg=15,
                                               turns_per_source_turn=2, forward_step_m=0.25)

@@ -6,7 +6,13 @@ BETA_HABITAT_PYTHON=${HABITAT_PYTHON:-/mnt/pfs/jiayilin/Image2Sim-Robot/envs/hab
 BETA_OUTPUT=${1:?supply a NEW output directory}
 BETA_EPISODES=${2:-10}
 cd "$REPO"
-exec env -u CUDA_VISIBLE_DEVICES \
+# Local deployments historically select a physical GPU. Cloud jobs must retain
+# the device mask supplied by the cluster, in addition to container isolation.
+BETA_DEVICE_ENV=(-u CUDA_VISIBLE_DEVICES)
+if [[ "${VLN_CLOUD_WORKER:-false}" == "true" ]]; then
+  BETA_DEVICE_ENV=()
+fi
+exec env "${BETA_DEVICE_ENV[@]}" \
   PYTHONPATH="$REPO/data_pipeline/.venv/deps${PYTHONPATH:+:$PYTHONPATH}" \
   PYTHONDONTWRITEBYTECODE=1 HABITAT_SIM_LOG=quiet MAGNUM_LOG=quiet \
   __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/10_nvidia.json \

@@ -178,6 +178,8 @@ def export_dataset(source, output, repo_id="beta-nav/r2r", episode_ids=None):
                   "collect_r2r.py", "vlnce_source.py", "run_lerobot.sh", "setup_lerobot.sh", "requirements-lerobot.txt")
     if raw_manifest.get("robot_type", "").startswith("vlnverse_isaac_"):
         code_files += ("collect_vlnverse.py", "vlnverse_source.py", "vlnverse_lightnav.py", "review_vlnverse.py")
+    if raw_manifest.get("source_selection", {}).get("dataset") == "scalevln":
+        code_files += ("scalevln_source.py",)
     for name in code_files:
         snapshot=source / "source_code" / name
         shutil.copyfile(snapshot if snapshot.is_file() else REPO / "data_pipeline" / name, provenance / name)

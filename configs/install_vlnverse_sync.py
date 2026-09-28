@@ -21,7 +21,7 @@ def main():
     command=[sys.executable,str(ROOT/'configs/sync_vlnverse.py'),'--root',str(target),
              '--state',str(settings.runtime_root/'vlnverse_sync'),'--repo-info',str(args.repo_info.resolve()),
              '--workers',str(args.workers)]
-    for path in (settings.vlnverse_scene_root,settings.resource_root/'scene_datasets/vlnverse'):
+    for path in (settings.vlnverse_scene_root,settings.scenes_root/'vlnverse'):
         if path and path.is_dir():command+=['--reuse',str(path)]
     units=Path.home()/'.config/systemd/user';units.mkdir(parents=True,exist_ok=True)
     (units/'vln-vlnverse-sync.service').write_text(f'''[Unit]

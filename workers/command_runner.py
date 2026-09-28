@@ -20,6 +20,9 @@ def atomic_json(path, data):
             json.dump(data, handle, ensure_ascii=False)
             handle.flush()
             os.fsync(handle.fileno())
+            from workers.output_storage import is_shared_output
+            if is_shared_output(path):
+                os.fchmod(handle.fileno(), 0o666)
             tmp.replace(path)
         finally:
             tmp.unlink(missing_ok=True)

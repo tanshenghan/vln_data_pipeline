@@ -1,0 +1,60 @@
+{
+  "date": "2026-09-27",
+  "status": "native_environment_probed_not_web_collection_accepted",
+  "vlnverse": "deferred_by_user",
+  "hm3d": {
+    "shared_root": "/home/beta/.local/share/vln-pipeline/scene_datasets/hm3d",
+    "release": "official Matterport public example, Habitat v0.2",
+    "full_dataset": false,
+    "scenes": {
+      "train": ["00337-CFVBbU9Rsyb", "00770-NBg5UqG3di3"],
+      "val": ["00861-GLAQ4DNUx5U"]
+    },
+    "scene_semantics_downloaded": false,
+    "archive_sha256": "bbafcfb13e84f404e95fb99022f0d6702571be795f3f711ad396d0bae5b33ef7",
+    "source": "https://github.com/matterport/habitat-matterport-3dresearch",
+    "authorization": "Full HM3D requires account-holder authorization; original academic/non-commercial terms apply."
+  },
+  "existing_asset_search": {
+    "local_readable_filesystems": "No pre-existing HM3D scene assets found on root or /mnt/nfs; /mnt/fastssd is the same data filesystem and was not searched twice.",
+    "limitations": "Private/unreadable directories were not bypassed. NAS search was bounded; lvxiaohui/data/agent_arena timed out. This is not proof of absence in those locations."
+  },
+  "scalevln": {
+    "web_collection_accepted": false,
+    "continuous_source": "https://huggingface.co/datasets/cywan/StreamVLN-Trajectory-Data",
+    "revision": "dc61ee9b4e90aa7ba63c1163b2134df5610dccb9",
+    "file": "ScaleVLN/scalevln_subset_150k.json.gz",
+    "access_probe": "403 GatedRepo using the current user's configured HF token",
+    "blockers": ["Account holder must obtain dataset access", "Required scene coverage must be verified against the actual authorized episode file"]
+  },
+  "evt_bench": {
+    "upstream_commit": "c69f9d98a73c8c9d16c7cf49351354c32d8bc0cd",
+    "upstream": "/mnt/nfs/ljqa/vln-pipeline/upstream/TrackVLA",
+    "environment": "/home/ljqa/workspace/VLN_Data_Pipeline/data_pipeline/.venv/evt",
+    "habitat_sim": "0.3.1 headless with Bullet",
+    "humanoids": "/mnt/nfs/ljqa/vln-pipeline/assets/evt/humanoids",
+    "humanoid_archive_sha256": "6efcfae8d13dd963c8f39a6b693b00f39edf2a184b682a03ee0188d163e47cb9",
+    "controller": "Official GTBBoxAgent baseline using privileged target bounding boxes, not expert demonstrations or TrackVLA/LightNav inference",
+    "each_mode_available_scene_episodes": {
+      "train": {"total": 7257, "mp3d": 962, "hm3d_example": 41},
+      "val": {"total": 1405, "mp3d": 721, "hm3d_example": 9}
+    },
+    "probes": [
+      {"scene_family": "mp3d", "mode": "STT", "frames": 31, "frames_target_visible": 31, "robot_path_m": 4.077206994365753, "target_path_m": 2.9571739205405545, "directory": "/mnt/nfs/ljqa/vln-pipeline/validation/evt-mp3d-baseline-20260927"},
+      {"scene_family": "hm3d", "mode": "STT", "frames": 31, "frames_target_visible": 31, "robot_path_m": 5.094091526653148, "target_path_m": 4.639801175591344, "directory": "/mnt/nfs/ljqa/vln-pipeline/validation/evt-hm3d-STT-baseline-20260927"},
+      {"scene_family": "mp3d", "mode": "DT", "frames": 31, "frames_target_visible": 31, "robot_path_m": 3.738904645858901, "target_path_m": 3.185660016406674, "directory": "/mnt/nfs/ljqa/vln-pipeline/validation/evt-mp3d-DT-baseline-20260927"},
+      {"scene_family": "mp3d", "mode": "AT", "frames": 31, "frames_target_visible": 31, "robot_path_m": 4.713611803919333, "target_path_m": 3.567359399405716, "directory": "/mnt/nfs/ljqa/vln-pipeline/validation/evt-mp3d-AT-baseline-20260927"}
+    ],
+    "initial_oracle_probe": "Failed: upstream oracle returns 3 velocity components but its default enable_lateral_move is false. No upstream source modifications made; successful probes use the published inference baseline instead.",
+    "readback": "Saved PNG, panoptic and pose checks passed; all four MP4 files decoded to 31 frames. HM3D rendered frame visually inspected.",
+    "native_environment_probe_passed": true,
+    "betanav_gt_complete": false,
+    "web_collection_accepted": false,
+    "remaining": "Confirm an independent dynamic-tracking contract/entry point; implement production collection/export/validation without reinterpreting a moving human as fixed terminal_ground GT."
+  },
+  "tests": {
+    "new_cpu_tests": 8,
+    "make_test_gt_passed": 132,
+    "canonical_test_exclusion": "Existing Makefile excludes test_rollout_lightnav.py; full unfiltered pytest collection lacks the upstream lightnav.habitat package."
+  }
+}
